@@ -1,25 +1,40 @@
 # function to load the dataset
+library(data.table)
 
-read_in <- function (location) {
-  read.csv(location, header = TRUE, stringsAsFactors = FALSE)
+
+# fuction to read in files
+read_in <- function (file_name) {
+  # using fread function from read.table as read.csv was taking long time to read in all files
+  fread(paste("/home/rahul/programming/R/project/datasets/", file_name, sep = ""), header = TRUE, stringsAsFactors = FALSE)
+
 }
+# Start the clock!
 
-file_1401 <- read_in("/home/rahul/programming/R/project/datasets/On_Time_On_Time_Performance_2014_1.csv")
 
-filenames <- c('01', '02', '03', '04','05', '06', '07', '08', '09', '10', '11', '12')
+files_list <- list.files(path="/home/rahul/programming/R/project/datasets/", pattern = ".\\.csv$")
+#dataset <- rbindlist(lapply(files_list,read_in))
 
-for  (i in 1:length(filenames)){
-  
-  pathName <- "/home/rahul/programming/R/weather/UTSA Weather/2015/"
-  regexP <- paste('^weather 2_',filenames[i],'.*\\.csv$', sep = "")
-  csv_file <- list.files(path=pathName, pattern = regexP)
-  myread.csv = function (x) read.csv(x, header = FALSE, skip = 11, nrows = 285)
-  readThis <- paste(pathName , csv_file, sep = "")
-  mydataFrame = paste("Weather_", filenames[i], sep = "")
-  mydataFrame <- do.call("rbind", lapply(readThis, myread.csv))
-  colnames(mydataFrame) <- c('Date', 'Time',	'CO2', 'DIRECTION',	'HG',	'WINDSPD',	'OAE')
-  write.csv (mydataFrame, file = paste(pathName, "monthly/Weather_2015_", filenames[i], ".csv", sep = ""))
-  
-  print (readThis) # list of file location
+
+
+
+
+ptm <- proc.time()
+
+for ( file in files_list) {
+  cat("Reading in file: \"",file, "\"\n") # prints out the current file name
+  if( !exists ("dataset")){
+    dataset <- read_in(file)
+    dataset <- dataset %>%  filter(grepl('SAT', Origin))
+  }
+  else {
+    temp_dataset <- read_in(file)
+    temp_dataset <- temp_dataset %>%  filter(grepl('SAT', Origin))
+    dataset <- rbind(dataset,temp_dataset[-1,])
+    rm(temp_dataset)
+  } 
   
 }
+proc.time() - ptm # timing the save the file
+nrow(dataset)
+View(dataset)
+
