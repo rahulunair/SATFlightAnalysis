@@ -13,15 +13,16 @@ EnsurePackage<-function(x)
 }
 
 #Installs and loads all packages necessary
-#
+
 Prepare.models<-function(){
   
+  EnsurePackage ("lubridate")
   EnsurePackage ("dplyr")
   EnsurePackage ("tidyr")
   EnsurePackage ("data.table")
   EnsurePackage("mosaic")
   EnsurePackage("mosaicData")
-
+  EnsurePackage ("RCurl")
 }
 
 Prepare.models()
