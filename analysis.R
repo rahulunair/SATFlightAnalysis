@@ -91,7 +91,7 @@ w_data_3 <- w_data_2 %>% filter(date.hour != "NA", TemperatureF != "NA", Wind.Sp
 dim(w_data_3)
 
 
-# Average weather - Averaging all values in a 24 hr period
+# Average weather - Averaging all values in a 24 hr period, getting max of weather conditions and events if any
 avg_weather <-  w_data_3 %>% group_by(date.hour) %>% summarise(Avg_Temperature_F = mean(TemperatureF),
                                                                Avg_wind_speed_MPH = mean (Wind.SpeedMPH),
                                                                Avg_Visibility = mean(VisibilityMPH),
@@ -100,8 +100,7 @@ avg_weather <-  w_data_3 %>% group_by(date.hour) %>% summarise(Avg_Temperature_F
                                                             
 
 dim (avg_weather)
-View(avg_weather)
-labels(which.max(table(w_data_3$Conditions)))
+View(avg_weather)labels(which.max(table(w_data_3$Conditions)))
 
 
 
