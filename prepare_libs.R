@@ -28,3 +28,9 @@ Prepare.models<-function(){
 Prepare.models()
 
 
+# Essential functions
+
+substrRight <- function(x, n){
+  substr(x, nchar(x)-n+1, nchar(x))
+}
+
