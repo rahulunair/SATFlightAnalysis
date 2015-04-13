@@ -54,5 +54,5 @@ View(weather_data)
 
 # writing the dataset to a file
 write.csv(weather_data, "../datasets/orginals/weather_data.csv")
-
+write.csv(weather_data, "../datasets/weather/weather_data.csv")
 

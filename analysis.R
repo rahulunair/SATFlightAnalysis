@@ -1,32 +1,57 @@
 library(tidyr)
 library(dplyr)
 library(sqldf) # a very nice library to do sql like queries with data frames
-# Reading in weather and flight data weather data
 
-weather_table_24 = read.csv("../datasets/weather/weather_data_24.csv")
+# Reading in weather and flight data weather data
+weather_data = read.csv("../datasets/weather/weather_data.csv")
 f_dataset = read.csv("../datasets/SAT_flights.csv")
 
+# Viewing both datasets
 View (f_dataset)
-View (weather_table_24)
+View (weather_data)
+
+# Removing the first column from the datasets, which was automatically added when written as csv
+weather_data <- weather_data[,-1]
+flight_data <- f_dataset[,-1]
 
 # making a few columns as factors
 
-f_dataset$Cancelled <-  as.factor(f_dataset$Cancelled)
-f_dataset$Diverted <-  as.factor(f_dataset$Diverted)
-f_dataset$Quarter <-  as.factor(f_dataset$Quarter)
-f_dataset$Month <-  as.factor(f_dataset$Month)
-f_dataset$DayofMonth <-  as.factor(f_dataset$DayofMonth)
-f_dataset$DayOfWeek <-  as.factor(f_dataset$DayOfWeek)
-f_dataset$DestAirportID <-  as.factor(f_dataset$DestAirportID)
-f_dataset$DestAirportSeqID <-  as.factor(f_dataset$DestAirportSeqID)
-f_dataset$DestCityMarketID <-  as.factor(f_dataset$DestCityMarketID)
-f_dataset$ArrDel15 <-  as.factor(f_dataset$ArrDel15)
+flight_data$Cancelled <-  as.factor(flight_data$Cancelled)
+flight_data$Diverted <-  as.factor(flight_data$Diverted)
+flight_data$Quarter <-  as.factor(flight_data$Quarter)
+flight_data$Month <-  as.factor(flight_data$Month)
+flight_data$DayofMonth <-  as.factor(flight_data$DayofMonth)
+flight_data$DayOfWeek <-  as.factor(flight_data$DayOfWeek)
+flight_data$DestAirportID <-  as.factor(flight_data$DestAirportID)
+flight_data$DestAirportSeqID <-  as.factor(flight_data$DestAirportSeqID)
+flight_data$DestCityMarketID <-  as.factor(flight_data$DestCityMarketID)
+flight_data$ArrDel15 <-  as.factor(flight_data$ArrDel15)
 
+# view flight_data
+
+View(flight_data)
+
+
+# Appending a zero to the front of depTime, so that hour format extracted can be easily matched with weather
+for (i in seq(nrow(flight_data))) {
+  if(nchar(flight_data$DepTime[i]) == 3)
+    flight_data$DepTime[i] = paste0("0",flight_data$DepTime[i], sep = "")
+  else if(nchar(flight_data$DepTime[i]) == 2)
+    flight_data$DepTime[i] = paste0("00", flight_data$DepTime[i], sep = "")
+  else 
+    flight_data$DepTime[i] = flight_data$DepTime[i]
+  #print (flight_data$DepTime[i])
+}
+
+View (flight_data)
 
 # getting the hour from departure time
-f_dataset$hour <- substr(f_dataset$DepTime, 1, (nchar(f_dataset$DepTime)-2))
+flight_data$hour <- substr(flight_data$DepTime, 1, 2)
 
-dim(f_dataset)
+dim(flight_data)
+
+
+
 f_dataset$hour <- as.factor(f_dataset$hour)
 summary (f_dataset$DepDelay)
 
@@ -35,36 +60,57 @@ dim(f_dataset)
 #names(flights_2)[names(flights_2) == "data=e.hour"] <- 'date.hour'
 
 # removing NA from departure delay and hour column and unites data and hour as date.hour
-f_data <- f_dataset %>% filter(DepDelay!= "NA", hour!= "NA") %>%  unite("date.hour", FlightDate, hour, sep = "-")
- 
+f_data <- flight_data %>% filter(DepDelay!= "NA") %>%  unite("date_hour", FlightDate, hour, sep = "-")
+
+# Viewing attributes of the dataset 
 dim(f_data)
 str(f_data)
+View(f_data)
 
 
-# Average delay 
+# Average delay grouped based on carriers
+Avg_carriers_delay <-  f_data %>%  filter( DepDel15 == 1) %>%  group_by(UniqueCarrier) %>%  summarize(Mean_Delay = mean(DepDelayMinutes), count = n()) %>% arrange(desc(Mean_Delay))
+View(Avg_carriers_delay) 
 
-avg_delay <- f_data %>% group_by (date.hour) %>% filter( DepDel15 == 1) 
-    %>% summarize (Avg_DepDelayMinutes = mean(DepDelayMinutes), count = n())
-    %>% filter ( count > 3 )
+# Max delay grouped based on carriers
+Max_carriers_delay <- sqldf("SELECT UniqueCarrier, Max(DepDelayMinutes) as Max_Delay_minutes, date_hour from f_data group by UniqueCarrier Order By Max_Delay_minutes DESC;")
+View(Max_carriers_delay)
+
+
+# flights grouped based on Destination
+flight_Destination <- f_data %>% group_by(Year, DestCityName) %>%  summarize(Number_of_flights = n()) %>% arrange(desc(Number_of_flights))
+View(flight_Destination)
+
+
+# Delay grouped based on Destination
+Avg_delay_Destination <- f_data %>% filter( DepDel15 == 1) %>% group_by(Year, DestCityName) %>%  summarize(Mean_Delay = mean(DepDelayMinutes), Number_of_flights = n()) %>% arrange(desc(Number_of_flights))
+View(Avg_delay_Destination) 
+
+
+
+# Average delay  - atleast one flight was delayed for 15 minutes 
+avg_delay <- f_data %>% group_by (date_hour) %>% filter( DepDel15 == 1)%>% summarize (Avg_DepDelayMinutes = mean(DepDelayMinutes), count = n()) 
+
+# Exploring avg_delay subset
 avg_delay
+View(avg_delay)
+dim(avg_delay)
 
-# max of average delay for more than 3 flights
 
-HighestAvgDelayDest <- sqldf("SELECT `date.hour`,Avg_DepDelayMinutes,count from avg_delay WHERE Avg_DepDelayMinutes =  (
+# max of average delay from the grouped average delay avg_delay. Please note here, even if there is only one flight, that is also grouped.
+# using sqldf which enables running sql like query against data frames in R. It is being very useful and flexible.
+
+HighestAvgDelayDest <- sqldf("SELECT `date_hour`,Avg_DepDelayMinutes,count from avg_delay WHERE Avg_DepDelayMinutes =  (
                 SELECT max(Avg_DepDelayMinutes) FROM avg_delay);")
 
-ScndHighestAvgDelayDest <- sqldf("SELECT `date.hour`,Avg_DepDelayMinutes,count from avg_delay WHERE Avg_DepDelayMinutes =  (
+ScndHighestAvgDelayDest <- sqldf("SELECT `date_hour`,Avg_DepDelayMinutes,count from avg_delay WHERE Avg_DepDelayMinutes =  (
                 SELECT max(Avg_DepDelayMinutes) FROM avg_delay
                 WHERE Avg_DepDelayMinutes NOT IN (SELECT max(Avg_DepDelayMinutes) FROM avg_delay));")
 
 
 
-# When was max delay for a date
-max_delay <- f_data %>% group_by (date.hour) %>% filter( DepDel15 == 1) %>% summarize (Max_DepDelayMinutes = max(DepDelayMinutes))
-
-names(max_delay)[names(max_delay) == "date.hour"] <- 'date_hour'
-
-
+# When was max delay for each date_hour, where the departure delay was atleast 15 mins
+max_delay <- f_data %>% group_by (date_hour) %>% filter( DepDel15 == 1) %>% summarize (Max_DepDelayMinutes = max(DepDelayMinutes))
 
 # Departure delay table with date, max amount of delay in minutes for the date, carrier ID and destination city
 # Using this table, we can see when was the most delay and its details
@@ -89,10 +135,6 @@ scndHighstDelayDest <- sqldf("SELECT date_hour,Max_DepDelayMinutes,DestCityName,
                               WHERE Max_DepDelayMinutes NOT IN (SELECT max(Max_DepDelayMinutes) FROM max_delay_destination));")
 
 
-scndHighstDelayDest <- sqldf("SELECT date_hour,Max_DepDelayMinutes,DestCityName,Distance from max_delay_destination 
-                              WHERE Max_DepDelayMinutes =  (SELECT max(Max_DepDelayMinutes) FROM max_delay_destination 
-                              WHERE Max_DepDelayMinutes NOT IN (SELECT max(Max_DepDelayMinutes) FROM max_delay_destination));")
-
 # when was the least delay
 
 
@@ -103,7 +145,10 @@ LowestDelayDest <- sqldf("SELECT date_hour,Max_DepDelayMinutes,DestCityName,Dist
 scndLowestDelayDest <- sqldf("SELECT date_hour,Max_DepDelayMinutes,DestCityName,Distance from max_delay_destination 
                               WHERE Max_DepDelayMinutes =  (SELECT min(Max_DepDelayMinutes) FROM max_delay_destination 
                               WHERE Max_DepDelayMinutes NOT IN (SELECT min(Max_DepDelayMinutes) FROM max_delay_destination));")
-                                                                                       
+
+
+
+                                                                                      
 
 # Departure delay table with date, avg amount of delay in minutes for the date, carrier ID and destination city
 # Using this table, we can see when was the most delay and its details
@@ -115,38 +160,20 @@ scndLowestDelayDest <- sqldf("SELECT date_hour,Max_DepDelayMinutes,DestCityName,
 
 
 
-Destination1 =  labels(which.max(table(f_data$DestCityName)))
-table(f_data$DestCityName)
-
 
 
 # Weather Data
-w_data <- weather_table_24 %>% filter (Time != "NA")
-w_data$Time_24 <- as.character(w_data$Time_24)
 
-class(w_data$Time_24)
-
-# creating a new column hour for weather data
-w_data$hour <- substr((w_data$Time_24), 1, (nchar(w_data$Time_24)-2))
-w_data_2 <- w_data %>% filter(Date!= "NA", Time!= "NA")
-
-# hour 24 is represented as empty character, thus the substr will return empty character for 24, 
-# using sapply and update those back to 24
-
-w_data_2$hour = sapply(w_data_2$hour, function (x) if(x == "") x = "24" else x)
-
-# combining date and hour
-w_data_2 <- w_data_2 %>% unite("date_hour", Date, hour, sep = "-")
-View(w_data_2)
-dim(w_data_2)
-
+dim(weather_data)
 #Selecting attibutes fom weather data
-w_data_3 <- w_data_2 %>% filter(date_hour != "NA", TemperatureF != "NA", Wind.SpeedMPH != "NA", VisibilityMPH != "NA")
-dim(w_data_3)
+weather_data_1 <- weather_data %>% filter(date_hour != "NA", TemperatureF != "NA", Wind.SpeedMPH != "NA", VisibilityMPH != "NA")
+dim(weather_data_1)
+
+View(w_data_3)
 
 
 # Average weather - Averaging all values in a 24 hr period, getting max of weather conditions and events if any
-avg_weather <-  w_data_3 %>% group_by(date_hour) %>% summarise(Avg_Temperature_F = mean(TemperatureF),
+avg_weather <-  weather_data_1 %>% group_by(date_hour) %>% summarise(Avg_Temperature_F = mean(TemperatureF),
                                                                Avg_wind_speed_MPH = mean (Wind.SpeedMPH),
                                                                Avg_Visibility = mean(VisibilityMPH),
                                                                conditions = labels(which.max(table(Conditions))),
@@ -154,14 +181,16 @@ avg_weather <-  w_data_3 %>% group_by(date_hour) %>% summarise(Avg_Temperature_F
                                                             
 
 dim (avg_weather)
-
+dim (avg_delay)
 
 # combined weather and flight data
 
 str(avg_delay)
-flight_nd_weather <- merge(avg_delay, avg_weather, by.x = "date.hour", by.y = "date_hour" )
+flight_nd_weather <- merge(avg_delay, avg_weather, by = "date_hour")
+
 View(flight_nd_weather)
-dim(avg_weather)
+
+dim(flight_nd_weather)
 
 
 
