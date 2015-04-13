@@ -77,9 +77,12 @@ Max_carriers_delay <- sqldf("SELECT UniqueCarrier, Max(DepDelayMinutes) as Max_D
 View(Max_carriers_delay)
 
 
-# flights grouped based on Destination
+# number of flights grouped based on Destination
 flight_Destination <- f_data %>% group_by(Year, DestCityName) %>%  summarize(Number_of_flights = n()) %>% arrange(desc(Number_of_flights))
-View(flight_Destination)
+str(flight_Destination)
+
+# basic plot of number of flights for each Destination
+barchart(Number_of_flights ~ DestCityName, data = flight_Destination)
 
 
 # Delay grouped based on Destination
