@@ -158,10 +158,10 @@ dim (avg_weather)
 
 # combined weather and flight data
 
-
-flight_nd_weather <- merge(f_)
-
-
+str(avg_delay)
+flight_nd_weather <- merge(avg_delay, avg_weather, by.x = "date.hour", by.y = "date_hour" )
+View(flight_nd_weather)
+dim(avg_weather)
 
 
 
