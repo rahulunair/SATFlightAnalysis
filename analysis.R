@@ -184,13 +184,20 @@ dim (avg_weather)
 dim (avg_delay)
 
 # combined weather and flight data
-
+View(avg_weather)
 str(avg_delay)
+flight_nd_w
 flight_nd_weather <- merge(avg_delay, avg_weather, by = "date_hour")
 
 View(flight_nd_weather)
 
 dim(flight_nd_weather)
 
+
+flight_nd_weather$hour <- substr(flight_nd_weather$date_hour, 12, 13)
+str(flight_nd_weather)
+# sample figures
+library(mosaic)
+xyplot(Avg_DepDelayMinutes ~ as.numeric(hour), data = flight_nd_weather)
 
 
