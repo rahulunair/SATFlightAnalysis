@@ -50,11 +50,10 @@ avg_delay
 
 
 # When was max delay
-
-
-max_delay <- f_data %>% group_by (date.hour) %>% filter( DepDel15 == 1) %>% summarize (Max_DepDelayMinutes = max(DepDelayMinutes), count = n())%>% filter ( count > 3 )
-
-max_delay
+max_delay <- f_data %>% group_by (date.hour) %>% filter( DepDel15 == 1) %>% summarize (Max_DepDelayMinutes = max(DepDelayMinutes))
+                                                                                       
+as.character(f_data[which.max(f_data[, "DepDelayMinutes"]), "DestCityName"])
+opt <- which.max(f_data[, "DepDelayMinutes"])
 
 index = which.max(max_delay$Max_DepDelayMinutes)
 
@@ -64,9 +63,6 @@ max_delay_date_delay <-  max_delay[index, 2]
 
 
 # Weather Data
-
-
-
 w_data <- weather_table_24 %>% filter (Time != "NA")
 w_data$Time_24 <- as.character(w_data$Time_24)
 
@@ -101,6 +97,13 @@ avg_weather <-  w_data_3 %>% group_by(date.hour) %>% summarise(Avg_Temperature_F
 
 dim (avg_weather)
 View(avg_weather)labels(which.max(table(w_data_3$Conditions)))
+
+# combined weather and flight data
+
+
+flight_nd_weather <- merge(f_)
+
+
 
 
 
