@@ -408,7 +408,7 @@ flight_nd_weather_no_2015 <- flight_nd_weather %>%
 View(flight_nd_weather_no_2015)
 calendarHeat(as.POSIXct(substr(flight_nd_weather_no_2015$date_hour,1, 10), format = "%Y-%m-%d"),
              flight_nd_weather_no_2015$Avg_Temperature_F,
-             col = 'r2b', main = " A heat map of temparature across the year")
+             col = 'r2b', varname = "Temperature in degree F")
 
 
 
