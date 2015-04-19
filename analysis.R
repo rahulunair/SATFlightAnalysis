@@ -6,7 +6,7 @@ library(tidyr)
 library(dplyr)
 library(sqldf) # a very nice library to do sql like queries with data frames
 library(makeR) # for calendarHeat function
-library("leaflet") # for mapping
+
 
 # Reading in weather and flight data weather data
 weather_data = read.csv("../datasets/weather/weather_data.csv")
@@ -34,7 +34,7 @@ flight_data$DestAirportSeqID <-
 flight_data$DestCityMarketID <-
   as.factor(flight_data$DestCityMarketID)
 flight_data$ArrDel15 <-  as.factor(flight_data$ArrDel15)
-
+flight_data$DepDel15 <- as.factor(flight_data$DepDel15)
 # view flight_data
 
 View(flight_data)
@@ -51,23 +51,38 @@ for (i in seq(nrow(flight_data))) {
   #print (flight_data$DepTime[i])
 }
 
+
+
+# Appending a zero to the front of ArrTime, so that hour format extracted can be easily matched with weather
+for (i in seq(nrow(flight_data))) {
+  if (nchar(flight_data$ArrTime[i]) == 3)
+    flight_data$ArrTime[i] = paste0("0",flight_data$ArrTime[i], sep = "")
+  else if (nchar(flight_data$ArrTime[i]) == 2)
+    flight_data$ArrTime[i] = paste0("00", flight_data$ArrTime[i], sep = "")
+  else
+    flight_data$ArrTime[i] = flight_data$ArrTime[i]
+  #print (flight_data$DepTime[i])
+}
+
+
 View (flight_data)
 
 # getting the hour from departure time
 flight_data$hour <- substr(flight_data$DepTime, 1, 2)
-
+flight_data$arr_hour <- substr(flight_data$ArrTime,1, 2)
 dim(flight_data)
 
 
 
 f_dataset$hour <- as.factor(f_dataset$hour)
+# summary of flight data
 summary (f_dataset$DepDelay)
 
 dim(f_dataset)
 
-#names(flights_2)[names(flights_2) == "data=e.hour"] <- 'date.hour'
 
-# removing NA from departure delay and hour column and unites data and hour as date.hour
+
+# removing NA from departure delay and hour (departure Time) column and unites data and hour as date.hour
 f_data <-
   flight_data %>% filter(DepDelay != "NA") %>%  unite("date_hour", FlightDate, hour, sep = "-")
 
@@ -82,10 +97,35 @@ View(f_data)
 Avg_carriers_delay <-
   f_data %>%  filter(DepDel15 == 1) %>%  
   group_by(UniqueCarrier) %>%  
-  summarize(Mean_Delay = mean(DepDelayMinutes), count = n()) %>% 
+  summarize(Mean_Delay = mean(DepDelayMinutes),
+            count = n()) %>% 
   arrange(desc(Mean_Delay))
 
 View(Avg_carriers_delay)
+
+
+
+# Average arrival Delay
+Avg_arr_delay_carriers <-  f_data %>%  filter(ArrDel15 == 1) %>%  
+  group_by(UniqueCarrier) %>%  
+  summarize(Mean_Arr_Delay = mean(ArrDelayMinutes),
+            count = n()) %>% 
+  arrange(desc(Mean_Arr_Delay))
+
+View(Avg_arr_delay_carriers)
+
+# bar chart of arr delay and flights
+barchart(Mean_Arr_Delay ~  UniqueCarrier, data = Avg_arr_delay_carriers ,
+         ylab = "Mean Arrival Delay (in minutes)", xlab = "Unique Carrier Codes", main = 
+           "Arrival Delay Statistic of carrier from SAT")
+
+
+# Arrival delay for carriers and count
+levelplot(Mean_Arr_Delay ~ count * UniqueCarrier, data = Avg_arr_delay_carriers, main =
+            "Arrival Delay vs number of flights per carrier" )
+
+
+
 
 # 2013
 Avg_carriers_delay_2013 <-  f_data %>%
@@ -111,15 +151,18 @@ str(Avg_carriers_delay)
 
 # plots
 
+# bar chart of delay and flights
+barchart(Mean_Delay ~ UniqueCarrier, data = Avg_carriers_delay_2013 ,
+         ylab = "Mean Departure Delay (in minutes)", xlab = "Unique Carrier Codes", main = 
+           "Flight Delay Statistic of carrier from SAT for 2013")
+
 # 2013
 levelplot(Mean_Delay ~ count * UniqueCarrier, data = Avg_carriers_delay_2013, main =
-            "Delay vs number of flights per carrier for 2013")
+            "Delay vs number of flights per carrier for 2013" )
 
 #2014
 levelplot(Mean_Delay ~ count * UniqueCarrier, data = Avg_carriers_delay_2014, main =
             "Delay vs number of flights per carrier for 2014")
-
-
 
 
 # Max delay grouped based on carriers
@@ -135,17 +178,40 @@ View(Max_carriers_delay)
 
 # number of flights grouped based on Destination
 flight_Destination <-
-  f_data %>% group_by(Year, DestCityName) %>%  summarize(Number_of_flights = n()) %>% arrange(desc(Number_of_flights))
+  f_data %>% group_by(Year, Dest) %>%  summarize(Number_of_flights = n()) %>% arrange(desc(Number_of_flights))
 str(flight_Destination)
 
-# basic plot of number of flights for each Destination
-barchart(Number_of_flights ~ DestCityName, data = flight_Destination)
+View(flight_Destination)
+
+# plot of number of flights for each Destination- Airport
+barchart(Number_of_flights ~ Dest,groups = Year,stack = T, auto.key=list(space='right'), data = 
+           flight_Destination, ylab = "Number of flights", xlab = "Airport")
 
 
 # Delay grouped based on Destination
 Avg_delay_Destination <-
-  f_data %>% filter(DepDel15 == 1) %>% group_by(Year, DestCityName) %>%  summarize(Mean_Delay = mean(DepDelayMinutes), Number_of_flights = n()) %>% arrange(desc(Number_of_flights))
+  f_data %>% filter(DepDel15 == 1, Year != 2015) %>% 
+  group_by(Year, DestCityName, Dest) %>%
+  summarize(Mean_Delay = mean(DepDelayMinutes), Number_of_flights = n()) %>%
+  arrange(desc(Number_of_flights))
+
 View(Avg_delay_Destination)
+
+# plot of Avg delay for each Destination- Airport
+barchart(Mean_Delay ~ Dest,groups = Year,stack = F, auto.key=list(space='right'), data = 
+           Avg_delay_Destination, ylab = "Mean Delay", xlab = "Airport", main = 
+           "Average Delay to different destinations")
+
+bwplot(Mean_Delay ~ Dest, data = Avg_delay_Destination, fill = "orange", pch="|",
+       xlab = "Airport", ylab = "Mean Delay", main = "Average Delay Spread to diff destinations")
+
+
+str(Avg_delay_Destination)
+
+# plot of Avg delay for each Destination- Airport
+barchart(Number_of_flights ~ Dest,groups = Year , stack = F, auto.key=list(space='right'), data = 
+           Avg_delay_Destination, ylab = "Number of flights Delayed", xlab = "Airport", main = 
+           "Average Delay to different destinations")
 
 
 
@@ -177,9 +243,41 @@ ScndHighestAvgDelayDest <-
 
 
 
-# When was max delay for each date_hour, where the departure delay was atleast 15 mins
+#  max delay for each date_hour, where the departure delay was atleast 15 mins
 max_delay <-
   f_data %>% group_by (date_hour) %>% filter(DepDel15 == 1) %>% summarize (Max_DepDelayMinutes = max(DepDelayMinutes))
+View(max_delay)
+
+
+max_delay_350_mins <- max_delay %>%  filter (Max_DepDelayMinutes > 350)
+
+max_delay_350_mins$Max_DepDelayMinutes <- gsub(",","",max_delay_350_mins$Max_DepDelayMinutes)
+max_delay_350_mins$Max_DepDelayMinutes <- as.numeric(max_delay_350_mins$Max_DepDelayMinutes)
+max_delay_350_mins$date_hour <- as.POSIXct(max_delay_350_mins$date_hour, format = '%Y-%m-%d-%H')
+
+View(max_delay_350_mins)
+
+# xy plot
+xyplot(Max_DepDelayMinutes ~ date_hour, data = max_delay_350_mins, type = c("p", "l"))
+
+
+avg_delay <-
+  f_data %>% group_by (date_hour) %>% filter(DepDel15 == 1) %>%
+  summarize (Avg_DepDelayMinutes = mean(DepDelayMinutes))
+
+View(avg_delay)
+
+
+avg_delay_200_mins <- avg_delay %>%  filter (Avg_DepDelayMinutes > 200)
+
+View(avg_delay_200_mins)
+
+avg_delay_200_mins$Max_DepDelayMinutes <- gsub(",","",avg_delay_200_mins$Avg_DepDelayMinutes)
+avg_delay_200_mins$Max_DepDelayMinutes <- as.numeric(avg_delay_200_mins$Avg_DepDelayMinutes)
+avg_delay_200_mins$date_hour <- as.POSIXct(avg_delay_200_mins$date_hour, format = '%Y-%m-%d-%H')
+
+# xy plot
+xyplot(Avg_DepDelayMinutes ~ date_hour, data = avg_delay_200_mins, type = c("p", "l"))
 
 # Departure delay table with date, max amount of delay in minutes for the date, carrier ID and destination city
 # Using this table, we can see when was the most delay and its details
@@ -257,6 +355,8 @@ dim(weather_data_1)
 View(w_data_3)
 
 
+
+
 # Average weather - Averaging all values in a 24 hr period, getting max of weather conditions and events if any
 avg_weather <-
   weather_data_1 %>% group_by(date_hour) %>% summarise(
@@ -274,7 +374,44 @@ dim (avg_delay)
 # combined weather and flight data
 View(avg_weather)
 str(avg_delay)
-flight_nd_w
+
+library(lubridate)
+years = year(as.POSIXct(substr(avg_weather$date_hour, 1, 4), format = "%Y"))
+avg_weather$year <- years
+
+avg_weather <- avg_weather %>% 
+  filter (Avg_Temperature_F > -25)
+
+avg_weather_2013 <- avg_weather %>% 
+  filter (Avg_Temperature_F > -25, year == 2013)
+
+avg_weather_2014 <- avg_weather %>% 
+  filter (Avg_Temperature_F > -25, year == 2014)
+
+# plot of weather 2013
+xyplot(Avg_Temperature_F ~ date_hour, data = avg_weather_2013,
+       type = c("l", "smooth"), grid = TRUE, col.line = "darkorange",main = 
+         "Temperature accross the year for 2013",xlab = "Date-hour across the year",
+       ylab = "Temperature in F", scales=list(x=list(at=NULL)))
+
+# plot of weather 2014
+xyplot(Avg_Temperature_F ~ date_hour, data = avg_weather_2014,
+       type = c("l", "smooth"), grid = TRUE, col.line = "darkblue",main = 
+         "Temperature accross the year for 2014",xlab = "Date-hour across the year",
+       ylab = "Temperature in F", scales=list(x=list(at=NULL)))
+
+# calendar plot of weather
+
+flight_nd_weather_no_2015 <- flight_nd_weather %>% 
+  filter(substr(flight_nd_weather$date_hour,1, 4) != 2015) 
+
+View(flight_nd_weather_no_2015)
+calendarHeat(as.POSIXct(substr(flight_nd_weather_no_2015$date_hour,1, 10), format = "%Y-%m-%d"),
+             flight_nd_weather_no_2015$Avg_Temperature_F,
+             col = 'r2b', main = " A heat map of temparature across the year")
+
+
+
 flight_nd_weather <- merge(avg_delay, avg_weather, by = "date_hour")
 
 View(flight_nd_weather)
@@ -285,9 +422,35 @@ dim(flight_nd_weather)
 flight_nd_weather$hour <-
   substr(flight_nd_weather$date_hour, 12, 13)
 str(flight_nd_weather)
+
 # sample figures
 
-xyplot(Avg_DepDelayMinutes ~ as.numeric(hour), data = flight_nd_weather)
+# Delay vs Time 
+xyplot(Avg_DepDelayMinutes ~ as.numeric(hour), 
+       data = flight_nd_weather, xlab = "Time (in Hrs)", 
+       ylab = "Average Departure Delay in Minutes", 
+       main = "Departure Delay across the day for 2013 - 2014")
+
+ Delay vs avg Temperature
+xyplot(Avg_DepDelayMinutes ~ as.numeric(Avg_Temperature_F), 
+       data = flight_nd_weather, xlab = "Temperature in F", type = c("p"),
+       ylab = "Average Departure Delay in Minutes", 
+       main = "Departure Delay vs Temperature for 2013 - 2014")
+
+# Delay vs Wind speed
+xyplot(Avg_DepDelayMinutes ~ as.numeric(Avg_wind_speed_MPH), 
+       data = flight_nd_weather, xlab = "Wind Speed in MPH", type = c("p"),
+       ylab = "Average Departure Delay in Minutes", 
+       main = "Departure Delay vs Wind Speed in MPH 2013 - 2014")
+
+# There is a stray visibility value of -1000, removing it
+flight_nd_weather <-  flight_nd_weather %>%  filter(Avg_Visibility > 0)
+
+# Delay vs Visibility
+xyplot(Avg_DepDelayMinutes ~ (Avg_Visibility), 
+       data = flight_nd_weather, xlab = "Visibility in Miles", type = c("p"),
+       ylab = "Average Departure Delay in Minutes", 
+       main = "Departure Delay vs Visibility 2013 - 2014")
 
 
 
