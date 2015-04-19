@@ -1,6 +1,12 @@
+install_github("hadley/devtools")
+require(devtools)
+devtools::install_git("https://github.com/jbryer/makeR.git", branch = "master")
+
 library(tidyr)
 library(dplyr)
 library(sqldf) # a very nice library to do sql like queries with data frames
+library(makeR) # for calendarHeat function
+library("leaflet") # for mapping
 
 # Reading in weather and flight data weather data
 weather_data = read.csv("../datasets/weather/weather_data.csv")
@@ -104,11 +110,11 @@ dim(avg_delay)
 # using sqldf which enables running sql like query against data frames in R. It is being very useful and flexible.
 
 HighestAvgDelayDest <- sqldf("SELECT `date_hour`,Avg_DepDelayMinutes,count from avg_delay WHERE Avg_DepDelayMinutes =  (
-                SELECT max(Avg_DepDelayMinutes) FROM avg_delay);")
+                             SELECT max(Avg_DepDelayMinutes) FROM avg_delay);")
 
 ScndHighestAvgDelayDest <- sqldf("SELECT `date_hour`,Avg_DepDelayMinutes,count from avg_delay WHERE Avg_DepDelayMinutes =  (
-                SELECT max(Avg_DepDelayMinutes) FROM avg_delay
-                WHERE Avg_DepDelayMinutes NOT IN (SELECT max(Avg_DepDelayMinutes) FROM avg_delay));")
+                                 SELECT max(Avg_DepDelayMinutes) FROM avg_delay
+                                 WHERE Avg_DepDelayMinutes NOT IN (SELECT max(Avg_DepDelayMinutes) FROM avg_delay));")
 
 
 
@@ -124,34 +130,34 @@ max_delay <- f_data %>% group_by (date_hour) %>% filter( DepDel15 == 1) %>% summ
 # destination with least number of delay
 
 max_delay_destination <- sqldf("select f_data.date_hour,Max_DepDelayMinutes,UniqueCarrier, DestCityName, Distance FROM max_delay 
-                                inner join f_data  on f_data.date_hour = max_delay.date_hour 
-                                and f_data. DepDelayMinutes = max_delay.Max_DepDelayMinutes
-                                order by max_delay.Max_DepDelayMinutes DESC;") 
+                               inner join f_data  on f_data.date_hour = max_delay.date_hour 
+                               and f_data. DepDelayMinutes = max_delay.Max_DepDelayMinutes
+                               order by max_delay.Max_DepDelayMinutes DESC;") 
 View(max_delay_destination)
 
 # finding the highest and second highest delay information
 HighestDelayDest <- sqldf("SELECT date_hour,Max_DepDelayMinutes,DestCityName,Distance from max_delay_destination WHERE Max_DepDelayMinutes =  (
-                SELECT max(Max_DepDelayMinutes) FROM max_delay_destination);")
+                          SELECT max(Max_DepDelayMinutes) FROM max_delay_destination);")
 
 scndHighstDelayDest <- sqldf("SELECT date_hour,Max_DepDelayMinutes,DestCityName,Distance from max_delay_destination 
-                              WHERE Max_DepDelayMinutes =  (SELECT max(Max_DepDelayMinutes) FROM max_delay_destination 
-                              WHERE Max_DepDelayMinutes NOT IN (SELECT max(Max_DepDelayMinutes) FROM max_delay_destination));")
+                             WHERE Max_DepDelayMinutes =  (SELECT max(Max_DepDelayMinutes) FROM max_delay_destination 
+                             WHERE Max_DepDelayMinutes NOT IN (SELECT max(Max_DepDelayMinutes) FROM max_delay_destination));")
 
 
 # when was the least delay
 
 
 LowestDelayDest <- sqldf("SELECT date_hour,Max_DepDelayMinutes,DestCityName,Distance from max_delay_destination WHERE Max_DepDelayMinutes =  (
-                SELECT min(Max_DepDelayMinutes) FROM max_delay_destination);")
+                         SELECT min(Max_DepDelayMinutes) FROM max_delay_destination);")
 
 
 scndLowestDelayDest <- sqldf("SELECT date_hour,Max_DepDelayMinutes,DestCityName,Distance from max_delay_destination 
-                              WHERE Max_DepDelayMinutes =  (SELECT min(Max_DepDelayMinutes) FROM max_delay_destination 
-                              WHERE Max_DepDelayMinutes NOT IN (SELECT min(Max_DepDelayMinutes) FROM max_delay_destination));")
+                             WHERE Max_DepDelayMinutes =  (SELECT min(Max_DepDelayMinutes) FROM max_delay_destination 
+                             WHERE Max_DepDelayMinutes NOT IN (SELECT min(Max_DepDelayMinutes) FROM max_delay_destination));")
 
 
 
-                                                                                      
+
 
 # Departure delay table with date, avg amount of delay in minutes for the date, carrier ID and destination city
 # Using this table, we can see when was the most delay and its details
@@ -177,11 +183,11 @@ View(w_data_3)
 
 # Average weather - Averaging all values in a 24 hr period, getting max of weather conditions and events if any
 avg_weather <-  weather_data_1 %>% group_by(date_hour) %>% summarise(Avg_Temperature_F = mean(TemperatureF),
-                                                               Avg_wind_speed_MPH = mean (Wind.SpeedMPH),
-                                                               Avg_Visibility = mean(VisibilityMPH),
-                                                               conditions = labels(which.max(table(Conditions))),
-                                                               events = labels(which.max(table(Events))))
-                                                            
+                                                                     Avg_wind_speed_MPH = mean (Wind.SpeedMPH),
+                                                                     Avg_Visibility = mean(VisibilityMPH),
+                                                                     conditions = labels(which.max(table(Conditions))),
+                                                                     events = labels(which.max(table(Events))))
+
 
 dim (avg_weather)
 dim (avg_delay)
@@ -200,7 +206,78 @@ dim(flight_nd_weather)
 flight_nd_weather$hour <- substr(flight_nd_weather$date_hour, 12, 13)
 str(flight_nd_weather)
 # sample figures
-library(mosaic)
+
 xyplot(Avg_DepDelayMinutes ~ as.numeric(hour), data = flight_nd_weather)
+
+
+
+
+#http://blog.revolutionanalytics.com/2009/11/charting-time-series-as-calendar-heat-maps-in-r.html
+#http://stackoverflow.com/questions/26171068/add-dates-to-calendar-heat-map-r
+
+# Calendar Heat Map
+# uses MakeR library calendarHeat function
+
+calendarHeat(as.POSIXct(substr(flight_nd_weather$date_hour,1, 10 ), format = "%Y-%m-%d"), flight_nd_weather$Avg_Temperature_F)
+View(flight_Destination)
+
+
+avg_flt_delay_per_day <-  f_data %>% group_by (Year, Month, DayofMonth) %>% filter( DepDel15 == 1)%>% summarize (Avg_DepDelayMinutes = mean(DepDelayMinutes), count = n()) 
+View(avg_flt_delay_per_day)
+
+# POSIX date 
+each_dt_as_char <- paste0(as.character(avg_flt_delay_per_day$Year), "-",as.character(avg_flt_delay_per_day$Month),"-", as.character(avg_flt_delay_per_day$DayofMonth))
+each_dt <- as.POSIXct(each_dt_as_char,format = "%Y-%m-%d")
+
+
+
+calendarHeat2<- makeR::calendarHeat
+
+#insert line to calculate day number
+bl<-as.list(body(calendarHeat2))
+body(calendarHeat2) <- as.call(c(
+  bl[1:14], 
+  quote(caldat$dom <- as.numeric(format(caldat$date.seq, "%d"))),
+  bl[-(1:14)]
+))
+
+#change call to level plot
+lp<-as.list(body(calendarHeat2)[[c(32,2,3)]])
+lp$dom <- quote(caldat$dom)
+lp$panel <- quote(function(x,y,subscripts,dom,...) {
+  str(list(...))
+  panel.levelplot(x,y,subscripts=subscripts,...)
+  panel.text(x[subscripts],y[subscripts],labels=dom[subscripts])
+})
+body(calendarHeat2)[[c(32,2,3)]]<-as.call(lp)
+
+calendarHeat(each_dt, avg_flt_delay_per_day$Avg_DepDelayMinutes, ncolors = 50, color = "r2b")
+calendarHeat2(each_dt, avg_flt_delay_per_day$Avg_DepDelayMinutes,color = "r2b")
+
+
+
+#  maps
+
+
+
+library(ggmap)
+
+mapData <- get_googlemap(center = 'us', zoom = 4, maptype = 'roadmap')
+ggmap(mapData, darken = 0, extent = 'device')
+geom_line(data = combine, aes(x = longitude, y = lantitude, group = id), size = 0.1,
+          alpha = 0.05,color = 'red4')
+
+geom_point(mapping )
+
+
+#Destnation 
+destination <- f_data %>%  group_by(DestCityName) %>% summarise(n = n())
+# using google geocode service to get the lattitude and longitude
+latLong <- geocode (as.character(destination$DestCityName), 'latlona')
+latLong <- rbind(latLong, geocode ('san antonio, tx', 'latlona'))
+destination$sourceCity <- 'san antonio, tx'
+destination <- destination %>%  select(sourceCity, DestCityName, count)
+colnames(destination) <- c('source', 'dest', 'count_flights')
+#View(latLong)
 
 

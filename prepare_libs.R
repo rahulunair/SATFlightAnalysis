@@ -1,4 +1,3 @@
-
 EnsurePackage<-function(x)
 { # EnsurePackage(x) - Installs and loads a package
   # if necessary
@@ -20,9 +19,14 @@ Prepare.models<-function(){
   EnsurePackage ("dplyr")
   EnsurePackage ("tidyr")
   EnsurePackage ("data.table")
-  EnsurePackage("mosaic")
-  EnsurePackage("mosaicData")
+  EnsurePackage("lattice")
+  EnsurePackage("LatticeExtra")
   EnsurePackage ("RCurl")
+  EnsurePackage ("sqldf")
+  EnsurePackage ("metrics")
+
+  
+  
 }
 
 Prepare.models()
