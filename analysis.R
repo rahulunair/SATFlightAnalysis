@@ -262,22 +262,85 @@ calendarHeat2(each_dt, avg_flt_delay_per_day$Avg_DepDelayMinutes,color = "r2b")
 
 library(ggmap)
 
-mapData <- get_googlemap(center = 'us', zoom = 4, maptype = 'roadmap')
-ggmap(mapData, darken = 0, extent = 'device')
-geom_line(data = combine, aes(x = longitude, y = lantitude, group = id), size = 0.1,
-          alpha = 0.05,color = 'red4')
-
-geom_point(mapping )
-
 
 #Destnation 
 destination <- f_data %>%  group_by(DestCityName) %>% summarise(n = n())
+
 # using google geocode service to get the lattitude and longitude
 latLong <- geocode (as.character(destination$DestCityName), 'latlona')
+
+# df with long , lat and address
 latLong <- rbind(latLong, geocode ('san antonio, tx', 'latlona'))
-destination$sourceCity <- 'san antonio, tx'
-destination <- destination %>%  select(sourceCity, DestCityName, count)
-colnames(destination) <- c('source', 'dest', 'count_flights')
+latLong$id <-1:dim(latLong)[1] 
+latLong <- latLong %>%  select(id, lon, lat, address)
+
 #View(latLong)
+
+
+destination$sourceCity <- 'san antonio, tx'
+# df with source, destination and number of flights
+destination <- destination %>%  select(sourceCity, DestCityName, n)
+colnames(destination) <- c('source', 'dest', 'count_flights')
+
+#View(destination)
+
+
+# instead of this we could use  destination$id <-1:dim(destination)[1] 
+for (i in seq(nrow(destination))) {
+    destination$id[i] <-  i
+}
+
+
+# creating the source table to show lines
+src <- data.frame(lon = character(30), lat = character(30))
+src$id <-  1:dim(src)[1]
+src$lon <- as.numeric(-98.49363) 
+src$lat <- as.numeric(29.42412)
+src  <- src %>% select(id, lon, lat)
+
+View(src)
+
+
+
+
+dst <- latLong %>%  filter(id != 31) %>%  select (id, lon, lat)
+dst$lat <- sapply ( dst$lat, as.numeric)
+dst$lon <- sapply ( dst$lon, as.numeric)
+str (dst)
+View(dst)
+
+
+# route_lat_lon
+route_lat_lon <- rbind(src, dst)
+View(route_lat_lon)
+
+mapData <- get_googlemap(center = 'us', zoom = 4, maptype = 'roadmap')
+usmap <- ggmap(mapData, darken = 0, extent = 'device') 
+airports <- usmap +  geom_point(data=latLong,aes(x=lon,y=lat),colour = 'red4',alpha=0.8, size = 3)
+route <- airports + geom_line(data = route_lat_lon, aes(x=lon, y=lat, group = id), size = 0.5 ,alpha = 0.4,color = 'red4')
+route
+
+str(latLong)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
