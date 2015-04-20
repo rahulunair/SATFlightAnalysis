@@ -9,12 +9,12 @@ library(makeR) # for calendarHeat function
 
 
 # Reading in weather and flight data weather data
-weather_data = read.csv("../datasets/weather/weather_data.csv")
+weather_data = read.csv("../datasets/weather/h_weather_data.csv")
 f_dataset = read.csv("../datasets/SAT_flights.csv")
 
 # Viewing both datasets
-View (f_dataset)
-View (weather_data)
+#View (f_dataset)
+#View (weather_data)
 
 # Removing the first column from the datasets, which was automatically added when written as csv
 weather_data <- weather_data[,-1]
@@ -351,15 +351,18 @@ dim(weather_data)
 weather_data_1 <-
   weather_data %>% filter(date_hour != "NA", TemperatureF != "NA", Wind.SpeedMPH != "NA", VisibilityMPH != "NA")
 dim(weather_data_1)
+View (weather_data_1)
 
-View(w_data_3)
+weather_data_full <- weather_data_1
 
+weather_data_full$year <- as.numeric(substr(weather_data_1$date, 1, 4))
 
-
+weather_data_1 <- weather_data_full %>% filter (year >2012)
+summary(weather_data_1)
 
 # Average weather - Averaging all values in a 24 hr period, getting max of weather conditions and events if any
 avg_weather <-
-  weather_data_1 %>% group_by(date_hour) %>% summarise(
+  weather_data_1 %>% filter (group_by(date_hour) %>% summarise(
     Avg_Temperature_F = mean(TemperatureF),
     Avg_wind_speed_MPH = mean (Wind.SpeedMPH),
     Avg_Visibility = mean(VisibilityMPH),
@@ -375,9 +378,6 @@ dim (avg_delay)
 View(avg_weather)
 str(avg_delay)
 
-library(lubridate)
-years = year(as.POSIXct(substr(avg_weather$date_hour, 1, 4), format = "%Y"))
-avg_weather$year <- years
 
 avg_weather <- avg_weather %>% 
   filter (Avg_Temperature_F > -25)
@@ -388,11 +388,40 @@ avg_weather_2013 <- avg_weather %>%
 avg_weather_2014 <- avg_weather %>% 
   filter (Avg_Temperature_F > -25, year == 2014)
 
+
+# full weather
+library(lubridate)
+summary(weather_data_full)
+
+## takes a long time, dont run
+
+**## Not run:**
+weather_data_full$month <- month(weather_data_full$date)
+weather_data_full$group <- "past"
+for ( i in seq(nrow(weather_data_full))) {
+    if (weather_data_full[i, 'year'] > 2012)
+    weather_data_full[i, 'group'] = weather_data_full[i, 'year']
+}
+## End(**Not run**)
+
+weather_data_full$TemperatureF <- as.numeric(weather_data_full$TemperatureF)
+weather_data_full <- weather_data_full %>% filter (TemperatureF > -10, year < 2015)
+write.csv(weather_data_full, "../datasets/weather/weather_data_full.csv")
+
+
+# plot of weather - historical and current
+bwplot(TemperatureF ~ as.factor(month)|group, data = weather_data_full, pch = '|',
+       type = c("l", "smooth"), grid = TRUE, col.line = "darkorange",main = 
+         "Temperature across 12 months",xlab = "Months",
+       ylab = "Temperature in F")
+
+
 # plot of weather 2013
 xyplot(Avg_Temperature_F ~ date_hour, data = avg_weather_2013,
        type = c("l", "smooth"), grid = TRUE, col.line = "darkorange",main = 
          "Temperature accross the year for 2013",xlab = "Date-hour across the year",
        ylab = "Temperature in F", scales=list(x=list(at=NULL)))
+
 
 # plot of weather 2014
 xyplot(Avg_Temperature_F ~ date_hour, data = avg_weather_2014,
@@ -400,8 +429,8 @@ xyplot(Avg_Temperature_F ~ date_hour, data = avg_weather_2014,
          "Temperature accross the year for 2014",xlab = "Date-hour across the year",
        ylab = "Temperature in F", scales=list(x=list(at=NULL)))
 
-# calendar plot of weather
 
+# calendar plot of weather
 flight_nd_weather_no_2015 <- flight_nd_weather %>% 
   filter(substr(flight_nd_weather$date_hour,1, 4) != 2015) 
 
@@ -411,13 +440,10 @@ calendarHeat(as.POSIXct(substr(flight_nd_weather_no_2015$date_hour,1, 10), forma
              col = 'r2b', varname = "Temperature in degree F")
 
 
-
 flight_nd_weather <- merge(avg_delay, avg_weather, by = "date_hour")
 
 View(flight_nd_weather)
-
 dim(flight_nd_weather)
-
 
 flight_nd_weather$hour <-
   substr(flight_nd_weather$date_hour, 12, 13)
@@ -451,9 +477,6 @@ xyplot(Avg_DepDelayMinutes ~ (Avg_Visibility),
        data = flight_nd_weather, xlab = "Visibility in Miles", type = c("p"),
        ylab = "Average Departure Delay in Minutes", 
        main = "Departure Delay vs Visibility 2013 - 2014")
-
-
-
 
 #http://blog.revolutionanalytics.com/2009/11/charting-time-series-as-calendar-heat-maps-in-r.html
 #http://stackoverflow.com/questions/26171068/add-dates-to-calendar-heat-map-r
@@ -506,6 +529,7 @@ calendarHeat2(each_dt, avg_flt_delay_per_day$Avg_DepDelayMinutes,color = "r2b")
 
 
 #  maps
+# http://xccds1977.blogspot.com/2012/07/blog-post_26.html
 library(ggmap)
 #Destnation
 destination <-
@@ -571,3 +595,12 @@ route <-
 
 # map of different destinations from SAT.
 route
+
+
+# plot of weather 2013
+xyplot(Avg_Temperature_F ~ date_hour, data = avg_weather_2013,
+       type = c("l", "smooth"), grid = TRUE, col.line = "darkorange",main = 
+         "Temperature accross the year for 2013",xlab = "Date-hour across the year",
+       ylab = "Temperature in F", scales=list(x=list(at=NULL)))
+
+
