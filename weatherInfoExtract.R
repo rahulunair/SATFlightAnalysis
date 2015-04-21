@@ -4,7 +4,7 @@
 library(lubridate)
 library (data.table)
 
-calendar <- seq(as.Date("2013/1/1"), as.Date("2015/1/1"), by = "day") # change values here to get data for the time period
+calendar <- seq(as.Date("2005/1/1"), as.Date("2015/1/1"), by = "day") # change values here to get data for the time period
 
 # Making list of URLs for the period specified above
 
@@ -52,7 +52,10 @@ weather_data <- weather_table_2 %>%  select(date_hour, date, hour, TemperatureF,
 View(weather_data)
 
 
+
+
+
 # writing the dataset to a file
-write.csv(weather_data, "../datasets/orginals/weather_data.csv")
-write.csv(weather_data, "../datasets/weather/weather_data.csv")
+write.csv(weather_data, "../datasets/orginals/h_weather_data.csv")
+write.csv(weather_data, "../datasets/weather/h_weather_data.csv")
 

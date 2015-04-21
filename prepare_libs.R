@@ -1,3 +1,6 @@
+devtools::install_git("https://github.com/hadley/devtools.git", branch = "master")
+devtools::install_git("https://github.com/jbryer/makeR.git", branch = "master")
+
 EnsurePackage<-function(x)
 { # EnsurePackage(x) - Installs and loads a package
   # if necessary
@@ -15,15 +18,21 @@ EnsurePackage<-function(x)
 
 Prepare.models<-function(){
   
+  EnsurePackage ("mosaic")
   EnsurePackage ("lubridate")
   EnsurePackage ("dplyr")
   EnsurePackage ("tidyr")
   EnsurePackage ("data.table")
-  EnsurePackage("lattice")
-  EnsurePackage("LatticeExtra")
   EnsurePackage ("RCurl")
+  # A library, that faciltates sql qureires on dataframe, I found it more flexible that dplyr.
   EnsurePackage ("sqldf")
+  # A library, that has a set of helper method to calculate MSE, SE among others
   EnsurePackage ("metrics")
+  EnsurePackage ("devtools")
+  # A library using which heat maps of for weather and delay are drawn
+  EnsurePackage ("makeR")
+  # A library which helped in plotting the map of routes from SAT across the US
+  EnsurePackage ("ggmap")
 
   
   

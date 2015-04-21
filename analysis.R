@@ -1,5 +1,6 @@
 install_github("hadley/devtools")
 require(devtools)
+
 devtools::install_git("https://github.com/jbryer/makeR.git", branch = "master")
 
 library(tidyr)
@@ -146,6 +147,9 @@ Avg_carriers_delay_2014 <-  f_data %>%
 View(Avg_carriers_delay_2014)
 
 
+
+
+
 require(mosaic)
 str(Avg_carriers_delay)
 
@@ -164,7 +168,7 @@ levelplot(Mean_Delay ~ count * UniqueCarrier, data = Avg_carriers_delay_2013, ma
 levelplot(Mean_Delay ~ count * UniqueCarrier, data = Avg_carriers_delay_2014, main =
             "Delay vs number of flights per carrier for 2014")
 
-
+require(sqldf)
 # Max delay grouped based on carriers
 Max_carriers_delay <-
   sqldf(
@@ -174,12 +178,19 @@ View(Max_carriers_delay)
 
 
 
+library(dplyr)
+
+# Top 4 destinations for each year
+flight_Destination_4 <-   f_data %>% group_by(Year, Dest) %>%  summarize(Number_of_flights = n()) 
+flight_Destination_4 <- flight_Destination %>% filter (Number_of_flights > 2000) %>% arrange(desc(Number_of_flights))
 
 
-# number of flights grouped based on Destination
-flight_Destination <-
-  f_data %>% group_by(Year, Dest) %>%  summarize(Number_of_flights = n()) %>% arrange(desc(Number_of_flights))
-str(flight_Destination)
+# list of destinations and numbr of flights
+
+flight_Destination <-   f_data %>% filter (Year < 2015) %>%  group_by(Year, Dest) %>%  summarize(Number_of_flights = n()) 
+flight_Destination <- flight_Destination %>% arrange(desc(Number_of_flights))
+
+
 
 View(flight_Destination)
 
@@ -207,13 +218,6 @@ bwplot(Mean_Delay ~ Dest, data = Avg_delay_Destination, fill = "orange", pch="|"
 
 
 str(Avg_delay_Destination)
-
-# plot of Avg delay for each Destination- Airport
-barchart(Number_of_flights ~ Dest,groups = Year , stack = F, auto.key=list(space='right'), data = 
-           Avg_delay_Destination, ylab = "Number of flights Delayed", xlab = "Airport", main = 
-           "Average Delay to different destinations")
-
-
 
 # Average delay  - atleast one flight was delayed for 15 minutes
 avg_delay <-
@@ -294,6 +298,9 @@ max_delay_destination <-
     and f_data. DepDelayMinutes = max_delay.Max_DepDelayMinutes
     order by max_delay.Max_DepDelayMinutes DESC;"
   )
+
+
+max_delay_destination <- max_delay_destination %>% filter (Max_DepDelayMinutes > 596)
 View(max_delay_destination)
 
 # finding the highest and second highest delay information
@@ -327,20 +334,6 @@ scndLowestDelayDest <-
     WHERE Max_DepDelayMinutes =  (SELECT min(Max_DepDelayMinutes) FROM max_delay_destination
     WHERE Max_DepDelayMinutes NOT IN (SELECT min(Max_DepDelayMinutes) FROM max_delay_destination));"
   )
-
-
-
-
-
-# Departure delay table with date, avg amount of delay in minutes for the date, carrier ID and destination city
-# Using this table, we can see when was the most delay and its details
-# when was the least delay and details
-# carrier with most number of delay
-# carrier with least number of delay
-# destination with most number of delay
-# destination with least number of delay
-
-
 
 
 
@@ -500,32 +493,9 @@ each_dt_as_char <-
 each_dt <- as.POSIXct(each_dt_as_char,format = "%Y-%m-%d")
 
 
-
-calendarHeat2 <- makeR::calendarHeat
-
-#insert line to calculate day number
-bl <- as.list(body(calendarHeat2))
-body(calendarHeat2) <- as.call(c(bl[1:14],
-                                 quote(caldat$dom <- as.numeric(
-                                   format(caldat$date.seq, "%d")
-                                 )),
-                                 bl[-(1:14)]))
-
-#change call to level plot
-lp <- as.list(body(calendarHeat2)[[c(32,2,3)]])
-lp$dom <- quote(caldat$dom)
-lp$panel <- quote(function(x,y,subscripts,dom,...) {
-  str(list(...))
-  panel.levelplot(x,y,subscripts = subscripts,...)
-  panel.text(x[subscripts],y[subscripts],labels = dom[subscripts])
-})
-body(calendarHeat2)[[c(32,2,3)]] <- as.call(lp)
-
 calendarHeat(
   each_dt, avg_flt_delay_per_day$Avg_DepDelayMinutes, ncolors = 50, color = "r2b"
 )
-calendarHeat2(each_dt, avg_flt_delay_per_day$Avg_DepDelayMinutes,color = "r2b")
-
 
 
 #  maps
