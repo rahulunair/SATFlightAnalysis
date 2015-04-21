@@ -450,7 +450,7 @@ xyplot(Avg_DepDelayMinutes ~ as.numeric(hour),
        ylab = "Average Departure Delay in Minutes", 
        main = "Departure Delay across the day for 2013 - 2014")
 
- Delay vs avg Temperature
+#Delay vs avg Temperature
 xyplot(Avg_DepDelayMinutes ~ as.numeric(Avg_Temperature_F), 
        data = flight_nd_weather, xlab = "Temperature in F", type = c("p"),
        ylab = "Average Departure Delay in Minutes", 
@@ -477,7 +477,8 @@ xyplot(Avg_DepDelayMinutes ~ (Avg_Visibility),
 # Calendar Heat Map
 # uses MakeR library calendarHeat function
 
-calendarHeat(as.POSIXct(substr(flight_nd_weather$date_hour,1, 10), format = "%Y-%m-%d"), flight_nd_weather$Avg_Temperature_F)
+calendarHeat(as.POSIXct(substr(flight_nd_weather$date_hour,1, 10), format = "%Y-%m-%d"),
+             flight_nd_weather$Avg_Temperature_F)
 View(flight_Destination)
 
 

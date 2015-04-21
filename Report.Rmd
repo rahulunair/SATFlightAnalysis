@@ -257,7 +257,7 @@ In this way, I was able to fetch both data sets, clean it, extract attributes I 
 ### **Analysis of Flight and Weather Data Sets**
 
 
-The formatted datasets are reloaded into the workspace from the saved csv files as follows:
+The formatted data sets are reloaded into the workspace from the saved csv files as follows:
 
 ``` {r}
 
@@ -267,7 +267,7 @@ f_dataset = read.csv("../datasets/SAT_flights.csv")
 
 ```
 
-Thus, as shown in the abve code block, weather_data will have historical weather data for each day from 2005 to 2015 and f_dataset will have flight statistics for flights whose origin is San Antonio Airport.
+Thus, as shown in the above code block, weather_data will have historical weather data for each day from 2005 to 2015 and f_data set will have flight statistics for flights whose origin is San Antonio Airport.
 
 ``` {r}
 # Initial exploratory analysis 
@@ -290,76 +290,7 @@ summary (weather_data)
 
 #### **Analysis of Flight Data**
 
-The summary gives us a brief idea of the dataset, there are a number of columns that can be removed from further analysis and dataset has to be further cleaned to remove NA's. If we look at  ArrDelayMinutes, we could see the maximum delay is 1338.00 minutes and DestStateName we can see to Texas close 32259, if Distance attribute is checked maximum distance is 1774 miles, for DepDelayMinutes the minimum is 0 minutes and maximum is 1340 minutes etc.  
-
-#### ** Map of Routes from San Antonio Airport**
-
-Let us see a map of flight routes from San Antonio airport to its destinations, this map was drawn using ggmap, google geocode service to get the lattitude and longitude of the destination airports. First, I used google maps static map service to get the image of road map of US. Then, using the geocode service, plotted the dots or location of each points in US. After this, using `geom_line` method of `ggplot` I was able to draw the lines connecting the destinations. This was based on plot done in this blog for chineese airports^3^.
-
-
- 
-``` {r warning = FALSE}
-
-#  maps
-# http://xccds1977.blogspot.com/2012/07/blog-post_26.html
-library(ggmap)
-#Destnation
-destination <-
-  f_data %>%  group_by(DestCityName) %>% summarise(n = n())
-
-# using google geocode service to get the lattitude and longitude
-latLong <-
-  geocode (as.character(destination$DestCityName), 'latlona')
-
-# df with long , lat and address
-latLong <- rbind(latLong, geocode ('san antonio, tx', 'latlona'))
-latLong$id <- 1:dim(latLong)[1]
-latLong <- latLong %>%  select(id, lon, lat, address)
-
-destination$sourceCity <- 'san antonio, tx'
-# df with source, destination and number of flights
-destination <- destination %>%  select(sourceCity, DestCityName, n)
-colnames(destination) <- c('source', 'dest', 'count_flights')
-
-# instead of this we could use  destination$id <-1:dim(destination)[1]
-for (i in seq(nrow(destination))) {
-  destination$id[i] <-  i
-}
-
-
-# creating the source table to show lines
-src <- data.frame(lon = character(30), lat = character(30))
-src$id <-  1:dim(src)[1]
-src$lon <- as.numeric(-98.49363)
-src$lat <- as.numeric(29.42412)
-src  <- src %>% select(id, lon, lat)
-
-
-
-dst <- latLong %>%  filter(id != 31) %>%  select (id, lon, lat)
-dst$lat <- sapply (dst$lat, as.numeric)
-dst$lon <- sapply (dst$lon, as.numeric)
-str (dst)
-
-# route_lat_lon
-route_lat_lon <- rbind(src, dst)
-
-mapData <-
-  get_googlemap(center = 'us', zoom = 4, maptype = 'roadmap')
-usmap <- ggmap(mapData, darken = 0, extent = 'device')
-airports <-
-  usmap +  geom_point(
-    data = latLong,aes(x = lon,y = lat),colour = 'red4',alpha = 0.8, size = 3
-  )
-route <-
-  airports + geom_line(
-    data = route_lat_lon, aes(x = lon, y = lat, group = id), size = 0.5 ,alpha = 0.4,color = 'red4'
-  )
-
-# map of different destinations from SAT.
-route
-
-``` 
+The summary gives us a brief idea of the data set, there are a number of columns that can be removed from further analysis and data set has to be further cleaned to remove NA's. If we look at  ArrDelayMinutes, we could see the maximum delay is 1338.00 minutes and DestStateName we can see to Texas close 32259, if Distance attribute is checked maximum distance is 1774 miles, for DepDelayMinutes the minimum is 0 minutes and maximum is 1340 minutes etc.  
 
 
 ``` {r}
@@ -438,16 +369,84 @@ f_data <-
 
 ```
 
-As mentioned in the comment removing NA from departure delay and departure time atrributs and uniting the hour and date attributes to date_hour. 
+As mentioned in the comment removing NA from departure delay and departure time attributes and uniting the hour and date attributes to date_hour. 
 
-Studying the structure of the f_dataset
+Studying the structure of the f_data set
 
 ``` {r eval = FALSE}
 dim(f_data)
 str(f_data)
 ```
+#### ** Map of Routes from San Antonio Airport**
 
-Now to the fun part, and answering some questions. 
+Let us see a map of flight routes from San Antonio airport to its destinations, this map was drawn using ggmap, google geocode service to get the latitude and longitude of the destination airports. First, I used google maps static map service to get the image of road map of US. Then, using the geocode service, plotted the dots or location of each points in US. After this, using `geom_line` method of `ggplot` I was able to draw the lines connecting the destinations. This was based on plot done in this blog for Chinese airports^3^.
+
+
+ 
+``` {r warning = FALSE}
+
+#  maps
+# http://xccds1977.blogspot.com/2012/07/blog-post_26.html
+library(ggmap)
+#Destnation
+destination <-
+  f_data %>%  group_by(DestCityName) %>% summarise(n = n())
+
+# using google geocode service to get the lattitude and longitude
+latLong <-
+  geocode (as.character(destination$DestCityName), 'latlona')
+
+# df with long , lat and address
+latLong <- rbind(latLong, geocode ('san antonio, tx', 'latlona'))
+latLong$id <- 1:dim(latLong)[1]
+latLong <- latLong %>%  select(id, lon, lat, address)
+
+destination$sourceCity <- 'san antonio, tx'
+# df with source, destination and number of flights
+destination <- destination %>%  select(sourceCity, DestCityName, n)
+colnames(destination) <- c('source', 'dest', 'count_flights')
+
+# instead of this we could use  destination$id <-1:dim(destination)[1]
+for (i in seq(nrow(destination))) {
+  destination$id[i] <-  i
+}
+
+
+# creating the source table to show lines
+src <- data.frame(lon = character(30), lat = character(30))
+src$id <-  1:dim(src)[1]
+src$lon <- as.numeric(-98.49363)
+src$lat <- as.numeric(29.42412)
+src  <- src %>% select(id, lon, lat)
+
+
+
+dst <- latLong %>%  filter(id != 31) %>%  select (id, lon, lat)
+dst$lat <- sapply (dst$lat, as.numeric)
+dst$lon <- sapply (dst$lon, as.numeric)
+str (dst)
+
+# route_lat_lon
+route_lat_lon <- rbind(src, dst)
+
+mapData <-
+  get_googlemap(center = 'us', zoom = 4, maptype = 'roadmap')
+usmap <- ggmap(mapData, darken = 0, extent = 'device')
+airports <-
+  usmap +  geom_point(
+    data = latLong,aes(x = lon,y = lat),colour = 'red4',alpha = 0.8, size = 3
+  )
+route <-
+  airports + geom_line(
+    data = route_lat_lon, aes(x = lon, y = lat, group = id), size = 0.5 ,alpha = 0.4,color = 'red4'
+  )
+
+# map of different destinations from SAT.
+route
+
+``` 
+
+Now for the fun part, and answering some questions. 
 
 ##### **what is average departure delay for each carrier?**
 
@@ -630,10 +629,10 @@ bwplot(Mean_Delay ~ Dest, data = Avg_delay_Destination, fill = "orange", pch="|"
 
 ``` 
 
-The above two plots, show the same variables in two different graphs, that is mean delay for flights based on destination airport and the sread of delay for each destination.
+The above two plots, show the same variables in two different graphs, that is mean delay for flights based on destination airport and the spread of delay for each destination.
 
 
-Let us now create the dataset which has average_delay for flights even if atleast one flight was delayed
+Let us now create the data set which has average_delay for flights even if at least one flight was delayed
 
 
 ``` {r warning = FALSE}
@@ -724,6 +723,251 @@ calendarHeat(
 
 
 ```
+
+#### **Analysis of Weather data**
+
+``` {r warning = FALSE}
+
+dim(weather_data)
+#Selecting attibutes fom weather data
+weather_data_1 <-
+  weather_data %>% filter(date_hour != "NA", TemperatureF != "NA", Wind.SpeedMPH != "NA", VisibilityMPH != "NA")
+dim(weather_data_1)
+
+```
+
+Above block of code filters the weather data and removes NA from vairables we are considering here, namely date_hour, temperature, wind speed, and visibility
+
+``` {r warning = FALSE}
+
+weather_data_full <- weather_data_1
+weather_data_full$year <- as.numeric(substr(weather_data_1$date, 1, 4))
+weather_data_1 <- weather_data_full %>% filter (year >2012)
+summary(weather_data_1)
+
+```
+
+In this block, historical weather data is stored as weather_data_full dataframe. A new variable is created for weather_data_full, year. This is used to filter off data for year less than 2012.
+
+##### ** Let us try to answer some question regarding weather of san antonio**
+
+This is an intricate data extraction, where average of attributes are found along with data about conditions and events, which occur the maximum time for this date_hour
+
+``` {r warning = FALSE}
+
+# Average weather - Averaging all values in a 24 hr period, getting max of weather conditions and events if any
+avg_weather <-
+  weather_data_1 %>% filter (group_by(date_hour) %>% summarise(
+    Avg_Temperature_F = mean(TemperatureF),
+    Avg_wind_speed_MPH = mean (Wind.SpeedMPH),
+    Avg_Visibility = mean(VisibilityMPH),
+    conditions = labels(which.max(table(Conditions))),
+    events = labels(which.max(table(Events)))
+  )
+  
+  
+  # Removing some stray values
+  avg_weather <- avg_weather %>% 
+  filter (Avg_Temperature_F > -25)
+
+avg_weather_2013 <- avg_weather %>% 
+  filter (Avg_Temperature_F > -25, year == 2013)
+
+avg_weather_2014 <- avg_weather %>% 
+  filter (Avg_Temperature_F > -25, year == 2014)
+
+
+
+``` 
+Now we have average weather across each date-hour along with the predominant condition for that particular time period.
+
+
+To get an idea of historical weather condition, its spread and how much different is the current weather conditions, I am grouping all the years before 2013 as 'past'. This allows me to extract interesting groups from the dataset. 
+
+``` {r warning = FALSE, eval = FALSE}
+
+# takes a long time, dont run
+
+**## Not run:**
+weather_data_full$month <- month(weather_data_full$date)
+weather_data_full$group <- "past"
+for ( i in seq(nrow(weather_data_full))) {
+    if (weather_data_full[i, 'year'] > 2012)
+    weather_data_full[i, 'group'] = weather_data_full[i, 'year']
+}
+## End(**Not run**)
+
+weather_data_full$TemperatureF <- as.numeric(weather_data_full$TemperatureF)
+weather_data_full <- weather_data_full %>% filter (TemperatureF > -10, year < 2015)
+write.csv(weather_data_full, "../datasets/weather/weather_data_full.csv")
+
+```
+
+The above block of code takes significant time to complete, thus I have made a persistant copy of the full weather data with the updated changes. In the following block I am reading in the data and visualizing weather data.
+
+#####** Is there any difference in the seasonality in weather in the last 15 years>**
+
+Let us try temperature, as it is the dominant factor in San Antonio.
+
+``` {r warning = FALSE}
+
+weather_data_full <- read.csv("../datasets/weather/weather_data_full.csv")
+weather_data_full <- weather_data_full[,-1]
+# plot of weather - historical and current
+bwplot(TemperatureF ~ as.factor(month)|group, data = weather_data_full, pch = '|',
+       type = c("l", "smooth"), grid = TRUE, col.line = "darkorange",main = 
+         "Temperature across 12 months",xlab = "Months",
+       ylab = "Temperature in F")
+
+```
+
+- Let us Plot temperature for eac date_hour for 2013
+
+``` {r warning = FALSE}
+# plot of weather 2013
+xyplot(Avg_Temperature_F ~ date_hour, data = avg_weather_2013,
+       type = c("l", "smooth"), grid = TRUE, col.line = "darkorange",main = 
+         "Temperature accross the year for 2013",xlab = "Date-hour across the year",
+       ylab = "Temperature in F", scales=list(x=list(at=NULL)))
+
+```
+
+- For 2012, the same plot looks like
+
+# plot of weather 2014
+xyplot(Avg_Temperature_F ~ date_hour, data = avg_weather_2014,
+       type = c("l", "smooth"), grid = TRUE, col.line = "darkblue",main = 
+         "Temperature accross the year for 2014",xlab = "Date-hour across the year",
+       ylab = "Temperature in F", scales=list(x=list(at=NULL)))
+
+
+As we see there is no significant change in weather for both 2013 and 2014.
+
+Let us see the difference in calendar months, the change in temperature for San Antonio for 2014 and 2013
+
+``` {r warning = FALSE}
+# calendar plot of weather
+flight_nd_weather_no_2015 <- flight_nd_weather %>% 
+  filter(substr(flight_nd_weather$date_hour,1, 4) != 2015) 
+
+View(flight_nd_weather_no_2015)
+calendarHeat(as.POSIXct(substr(flight_nd_weather_no_2015$date_hour,1, 10), format = "%Y-%m-%d"),
+             flight_nd_weather_no_2015$Avg_Temperature_F,
+             col = 'r2b', varname = "Temperature in degree F")
+
+```
+
+
+#### ** Combined anaysis of flight and climate data**
+
+I merged both flight data and weather data on the variable `date_hour`.
+
+Now that we have merged both datasets, let us try to understand the same.
+
+``` {r warning = FALSE}
+dim(flight_nd_weather)
+flight_nd_weather$hour <-
+  substr(flight_nd_weather$date_hour, 12, 13)
+str(flight_nd_weather)
+
+``` 
+
+Here I have added one more attribute, hour,  to the dataset
+
+##### **Visualizing the combined dataset**
+
+``` {r warning = FALSE}
+# Delay vs Time 
+xyplot(Avg_DepDelayMinutes ~ as.numeric(hour), 
+       data = flight_nd_weather, xlab = "Time (in Hrs)", 
+       ylab = "Average Departure Delay in Minutes", 
+       main = "Departure Delay across the day for 2013 - 2014")
+``` 
+
+Above I have plotted average departure delay in minutes for each hour (0 - 23)
+
+Let us see if there is any relationship between average departure delay and average temperature
+
+``` {r warning = FALSE}
+
+#Delay vs avg Temperature
+xyplot(Avg_DepDelayMinutes ~ as.numeric(Avg_Temperature_F), 
+       data = flight_nd_weather, xlab = "Temperature in F", type = c("p"),
+       ylab = "Average Departure Delay in Minutes", 
+       main = "Departure Delay vs Temperature for 2013 - 2014")
+
+
+``` 
+There are very few occurances of flight delays when the temperature is very less, may be the airport throttles rate of flights when it is beyond certain temparture, consequently delay is also less than 200 when the temperature is low as there are only very few flights.
+
+Thus the delays might be cause by some other factor, may be departure delay is because of high traffic during August month.
+
+Let us explore further, is there any relationship between departure delay and wind speed
+
+``` {r warning = FALSE}
+
+# Delay vs Wind speed
+xyplot(Avg_DepDelayMinutes ~ as.numeric(Avg_wind_speed_MPH), 
+       data = flight_nd_weather, xlab = "Wind Speed in MPH", type = c("p", "smooth"),
+       ylab = "Average Departure Delay in Minutes", 
+       main = "Departure Delay vs Wind Speed in MPH 2013 - 2014")
+
+``` 
+
+As we can see in the plot, there is a sudden decrease in number of occurances of flight delays 
+at windspeeds between 15 MPH and 30 MPH, this may be the optimum wind speed.
+
+``` {r warning = FALSE}
+
+# There is a stray visibility value of -1000, removing it
+flight_nd_weather <-  flight_nd_weather %>%  filter(Avg_Visibility > 0)
+
+# Delay vs Visibility
+xyplot(Avg_DepDelayMinutes ~ (Avg_Visibility), 
+       data = flight_nd_weather, xlab = "Visibility in Miles", type = c("p"),
+       ylab = "Average Departure Delay in Minutes", 
+       main = "Departure Delay vs Visibility 2013 - 2014")
+
+``` 
+From this plot an interesting relationship when visibility is high occurance of delay is also high, also the average delay is high when visibility is 10 MPH.
+
+This may be because, there is high rate of flights when visibility is max, thus delays also increase correspondingly.
+
+To understand this, let us find flights with arrival delay as well as departure delay
+
+``` {r warning = FALSE}
+
+avg_dep_arr_delay <-   f_data %>% group_by (date_hour) %>% filter(DepDel15 == 1 && ArrDel15 ==1) %>%
+  summarize (Avg_DepDelayMinutes = mean(DepDelayMinutes), Avg_ArrDelayMinutes = mean(ArrDelayMinutes))
+
+``` 
+Above `avg_dep_arr_delay`  data frame has average departure and arrival delay for each date_hour.
+
+
+Let us try to find the relationship between departure and arrival delays
+
+
+
+``` {r warning = FALSE}
+
+
+xyplot(Avg_DepDelayMinutes ~ (Avg_ArrDelayMinutes), 
+       data = avg_dep_arr_delay, xlab = "Average arrival Delay in Minutes", type = c("p", "smooth"),
+       ylab = "Average Departure Delay in Minutes", 
+       main = "Departure Delay vs Arrival delay 2013 - 2014")
+
+
+avg_dep_arr_delay <-   f_data %>% group_by (date_hour) %>% filter(DepDel15 == 1 && ArrDel15 ==1) %>%
+  summarize (Avg_DepDelayMinutes = mean(DepDelayMinutes), Avg_ArrDelayMinutes = mean(ArrDelayMinutes))
+
+``` 
+
+
+Finally, now that shows there is a linear correlation between departure delay and arrival delay!!.
+
+
+
+### **Models for predicting airline delay**
 
 
 
