@@ -755,16 +755,15 @@ This is an intricate data extraction, where average of attributes are found alon
 
 ``` {r warning = FALSE}
 
-# Average weather - Averaging all values in a 24 hr period, getting max of weather conditions and events if any
+#Average weather - Averaging all values in a 24 hr period, getting max of weather conditions and #events if any
 avg_weather <-
-  weather_data_1 %>% filter (group_by(date_hour) %>% summarise(
+  weather_data_1 %>% group_by(date_hour) %>% summarise(
     Avg_Temperature_F = mean(TemperatureF),
     Avg_wind_speed_MPH = mean (Wind.SpeedMPH),
     Avg_Visibility = mean(VisibilityMPH),
     conditions = labels(which.max(table(Conditions))),
     events = labels(which.max(table(Events)))
   )
-  
   
   # Removing some stray values
   avg_weather <- avg_weather %>% 

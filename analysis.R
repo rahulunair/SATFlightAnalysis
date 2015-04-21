@@ -355,7 +355,7 @@ summary(weather_data_1)
 
 # Average weather - Averaging all values in a 24 hr period, getting max of weather conditions and events if any
 avg_weather <-
-  weather_data_1 %>% filter (group_by(date_hour) %>% summarise(
+  weather_data_1 %>% group_by(date_hour) %>% summarise(
     Avg_Temperature_F = mean(TemperatureF),
     Avg_wind_speed_MPH = mean (Wind.SpeedMPH),
     Avg_Visibility = mean(VisibilityMPH),
