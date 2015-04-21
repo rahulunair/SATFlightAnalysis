@@ -1,0 +1,731 @@
+---
+title: "On-Time Performance of Flights from San Antonio"  
+author: "Rahul Unnikrishnan Nair"  
+date: "April 20, 2015"   
+
+output:
+  html_document:
+    toc: yes
+---
+    
+This is a comprehensive analysis of on time performance of flights from the city of San Antonio, Texas USA. Here I have used two primary data sets to try to identify the rate of delayed flights, what are the causes of delays, is weather a significant factor for delays as in most airports. In the end I have developed a simple model using randomForest algorithm to try and predict flight delay,
+
+
+### **Initial Setup**
+
+Before going into detail on the data sets and analysis, an initial script used in class, is introduced here. This script ensures that all required packages are present, if not they are downloaded and installed.
+
+
+```{r message = FALSE, warning = FALSE}
+
+EnsurePackage<-function(x)
+{ # EnsurePackage(x) - Installs and loads a package
+  # if necessary
+  x <- as.character(x)
+  if (!require(x, character.only=TRUE))
+  {
+    install.packages(pkgs=x,
+                     repos="http://cran.r-project.org")
+  }
+  library(x, character.only=TRUE)
+  
+}
+
+#Installs and loads all packages necessary
+
+Prepare.models<-function(){
+  
+  EnsurePackage ("mosaic")
+  EnsurePackage ("lubridate")
+  EnsurePackage ("dplyr")
+  EnsurePackage ("tidyr")
+  EnsurePackage ("data.table")
+  EnsurePackage ("RCurl")
+  # A library, that faciltates sql qureires on dataframe, I found it more flexible that dplyr.
+  EnsurePackage ("sqldf")
+  # A library, that has a set of helper method to calculate MSE, SE among others
+  EnsurePackage ("Metrics")
+  EnsurePackage ("devtools")
+  # A library using which heat maps of for weather and delay are drawn
+  EnsurePackage ("makeR")
+  # A library which helped in plotting the map of routes from SAT across the US
+  EnsurePackage ("ggmap")
+  devtools::install_git("https://github.com/jbryer/makeR.git", branch = "master")
+  
+  
+}
+
+Prepare.models()
+
+
+# Essential functions
+
+substrRight <- function(x, n){
+  substr(x, nchar(x)-n+1, nchar(x))
+}
+
+
+```
+
+The last line of `Prepare.models` is the command `devtools::install_git` command, what this means is, use  function install_git that is part of the devtools module to fetch the git repository of makeR, then using this git repository, install the package.
+
+Next, comes the ensure package function which checks if the package, being passed to the function is present in the local machine, if not install it and loads it to the workspace. Most of the graphing has been done using the lattice plots that are part of the `mosaic` function. For data manipulation and extraction `dplyr` package has been extensively used, also a package `sqldf` has been tried, to explore its possibilities. A package `data.table` which has functions like `fread`, and `rbindList` capable of handling big data sets such as the flight statistics and also 10 years of hourly weather data. Extracting, processing these data sets using conventional methods like read.csv, rbind etc made Rstudio non responsive.
+
+The `substr` function is used in some places to get part of a character vector from the right.
+
+### **Data Source**
+
+For this analysis I used to main sources of data, one for flight statistics for San Antonio International Airport, the other for getting weather data.
+
+The flight statistics involved close to 112 attributes, which involved, the date of flight, the flight code, destination city, destination state, arrival time, departure time, arrival delay, departure delay, gate delay, etc. This data was obtained from Bureau of transportation statistics^1^, links have been proved in the appendix. This data set was in a zipped for for each month, data for 2 years , 2013 and 2014 were downloaded unzipped, and filtered for flights with origin as SAT (code for San Antonio) using R scripts. This was then saved as a CSV, for analysis purposes.
+
+The weather data was obtained from weather underground^2^ for the last 10 years, to show the historical variation in weather across months and the last two years, 2013 and 2014 have been used to merge with the data set and to try and find any correlation between weather and flight delays. This data, was download using scripts in R for each hour for the last 10 years stitched together, time stamp corrected to be CST/CDT and cleaned. This was done using R.
+
+#### **Scripts used in processing of the input dataset**
+
+
+
+- **Flight data**
+
+The flight data obtained from BTS, as mentioned above were in the form of zipped files, for 2 years, it was a set of 24 zipped files each of around 150 MB in size. These were first downloaded and saved to a local directory. 
+
+```{r}
+
+# fuction to read in files
+read_in <- function (file_name) {
+
+    # using fread function from read.table as read.csv was taking long time to read in all files
+    fread(file_name, header = TRUE, stringsAsFactors = FALSE)
+  }
+
+# unzip the zipped files into an appropriate directory
+
+```
+
+The above function is a csv reader, which has been modified to use fread, instead of csv.read, as mentioned earlier read.csv took significant amount of time to read the data.
+
+```{r}
+
+process_files <- function() {
+  
+  # Timer start  -  to time how much time it takes for the process to get completed.
+  ptm <- proc.time()  
+  
+  # Directory where files are unzipped
+  zipdir <- "../datasets/flight_data/"
+  zip_files_list <- list.files(path="../datasets/orginals/", pattern = ".\\.zip$")
+  
+  # unzipping to specified directory zipdir
+  for (zip_file in zip_files_list) {
+    zip_file = paste("../datasets/orginals", zip_file, sep = "/")
+    cat("Extracting file: \"",zip_file, "\"\n")
+    unzip( zip_file, exdir = zipdir)
+  }
+  
+  # Getting the list of files in the directory
+  files_list = list.files(path = zipdir, , pattern = ".\\.csv$")
+  
+  #  Reading in one csv at a time and filtering for Origin = "SAT"
+  for ( file_name in files_list) {
+    
+    file_name <- paste(zipdir,file_name, sep ="")
+    
+    cat("Reading in file: \"",file_name, "\"\n") # prints out the current file name
+    
+    if( !exists ("f_dataset"))
+      
+      {
+      f_dataset <- read_in(file_name)
+      f_dataset <- f_dataset %>%  filter(grepl('SAT', Origin))
+    }
+    
+    else
+      
+      {
+        
+      temp_f_dataset <- read_in(file_name)
+      temp_f_dataset <- temp_f_dataset %>%  filter(grepl('SAT', Origin))
+      
+      f_dataset <- rbind(f_dataset,temp_f_dataset)
+      rm(temp_f_dataset)
+      
+    } 
+      
+  }
+  cat("Number of data points: \"",nrow(f_dataset), "\"\n") # Number of rows of the filtered dataset
+    write.csv(f_dataset, "../datasets/SAT_flights.csv")
+    proc.time() - ptm # timing the save the file
+  
+}
+
+```
+The above function, lists all zipped file saved in a local directory as given by `zip_files_list`, 
+these files are unzipped one by one and saved to `zipdir` directory. After all these files have been extracted, I streamed these files one by one to the `read_in` method detailed above and extracted attributes of flights originating from SAT, specified by the command: 
+filter `(grepl('SAT'), Origin)` . This could have been done in another way, where in using read.csv, reading in the zipped file directly extracting the required data using `filter` command, but this was taking much time and memory, thus I ended up with an iterative process. 
+
+Calling the above function to process the data
+
+
+``` {r eval = FALSE}
+# When this method is called, flight datasets zipped are unzipped,
+# filtered for datapoints with Origin == 'SAT' and saved as SAT_flights.csv
+
+process_files()
+```  
+  
+
+
+
+- **Weather Data**
+
+The weather data-set was downloaded from weather-underground using an script, which downloaded 10 years of daily weather data from San Antonio Airport weather station. This script, took about 15 - 20 minutes to complete and the data was saved in 2 locations, one location were all originals were stored, the other was file, that was used for processing. 
+
+The following R script was used to get weather data:
+
+
+``` {r}
+# change values here to get data for the time period
+calendar <- seq(as.Date("2005/1/1"), as.Date("2015/1/1"), by = "day") 
+```
+
+The above line is self explanatory, it returns a vector of Dates from 2005 to 2015
+
+``` {r}
+# Making list of URLs for the period specified above
+
+urls <- sapply( calendar, function(c_date){
+  if (!exists("x"))
+    x <- paste("http://www.wunderground.com/history/airport/KSAT",year(c_date),month(c_date),day(c_date), "DailyHistory.html?format=1", sep = "/")
+  else {
+    temp_x <- paste("http://www.wunderground.com/history/airport/KSAT",year(c_date),month(c_date),day(c_date), "DailyHistory.html?format=1", sep = "/")
+    x <- rbind(x, temp_x)
+    remove(temp_x)
+  }
+  x})
+   
+```
+
+The above block, return a vector of formatted URL for each day from 2005 - 2015, this set URLs is used to extract data from weather underground, for getting this quantum of data it is advisable to use to API provided by weather underground, as repeated calling of these many URLs can adversely affect the performance of the website. 
+
+``` {r eval = FALSE}
+# creating a data frame of the downloded data from the list of URLs
+weather_table <- rbindlist(lapply(urls, read.csv),use.names = TRUE, fill = TRUE) 
+``` 
+
+This line above, downloads the data and using `rbindlist` command appends, each consecutive set of data to the bottom of the data frame. Here `use.names = TRUE` forces `rbindlist` to match each chunk of data using the column names.
+
+``` {r eval = FALSE}
+# adding a new column for utc date and time to the dataset
+weather_table_1 <- cbind(as.data.frame(substr(weather_table$DateUTC.br..., 1, 19)), weather_table)
+colnames(weather_table_1)[1] <- "UTCDateTime"
+
+
+# converting UTC timezone to CST TImeZone
+DateTime_UTC <- as.POSIXct(weather_table_1$UTCDateTime,tz="UTC")
+head(DateTime_UTC)
+DateTime_CST <- format(DateTime_UTC, tz = "America/Chicago", usetz = TRUE)
+head(DateTime_CST, 24)
+
+# adding date, time columns to weather_table_1
+weather_table_1$date <- substr(DateTime_CST, 1, 10)
+weather_table_1$time <- substr(DateTime_CST, 12, 16)
+
+# adding date_hour column to weather_table_1
+weather_table_1$date_hour <- paste(weather_table_1$date, substr(strptime(weather_table_1$time, "%H"), 12, 13), sep = "-")  
+
+# Removing unused attributes and formatting
+weather_table_2 <- weather_table_1 %>%  select(-c(UTCDateTime, TimeCST, Gust.SpeedMPH, PrecipitationIn, DateUTC.br..., TimeCDT))
+names(weather_table_2)[names(weather_table_2) == "time"] <- 'hour'
+
+# selecting only the required columns from the data frame
+weather_data <- weather_table_2 %>%  select(date_hour, date, hour, TemperatureF, VisibilityMPH, Wind.SpeedMPH, Wind.Direction, WindDirDegrees, Humidity, Sea.Level.PressureIn, Conditions, Events)
+
+# saving the data frame
+
+# writing the dataset to a file
+write.csv(weather_data, "../datasets/orginals/h_weather_data.csv")
+write.csv(weather_data, "../datasets/weather/h_weather_data.csv")
+
+``` 
+
+The code above is well commented, data is stored into two separate folders, originals and weather, this is to maintain a sane copy of weather data at all times, so that if any one of the file gets corrupted, always we could fall back to the other.
+
+
+In this way, I was able to fetch both data sets, clean it, extract attributes I was interested in and saved both to a csv file , so that it can be used for further analysis.
+
+
+### **Analysis of Flight and Weather Data Sets**
+
+
+The formatted datasets are reloaded into the workspace from the saved csv files as follows:
+
+``` {r}
+
+# Reading in weather and flight data weather data
+weather_data = read.csv("../datasets/weather/h_weather_data.csv")
+f_dataset = read.csv("../datasets/SAT_flights.csv")
+
+```
+
+Thus, as shown in the abve code block, weather_data will have historical weather data for each day from 2005 to 2015 and f_dataset will have flight statistics for flights whose origin is San Antonio Airport.
+
+``` {r}
+# Initial exploratory analysis 
+
+# flight data
+# number of rows and columns
+nrow (f_dataset)
+ncol (f_dataset)
+# summary
+summary (f_dataset)
+
+# weather data
+# number of rows and columns
+nrow (weather_data)
+ncol (weather_data)
+# summary
+summary (weather_data)
+
+```
+
+#### **Analysis of Flight Data**
+
+The summary gives us a brief idea of the dataset, there are a number of columns that can be removed from further analysis and dataset has to be further cleaned to remove NA's. If we look at  ArrDelayMinutes, we could see the maximum delay is 1338.00 minutes and DestStateName we can see to Texas close 32259, if Distance attribute is checked maximum distance is 1774 miles, for DepDelayMinutes the minimum is 0 minutes and maximum is 1340 minutes etc.  
+
+#### ** Map of Routes from San Antonio Airport**
+
+Let us see a map of flight routes from San Antonio airport to its destinations, this map was drawn using ggmap, google geocode service to get the lattitude and longitude of the destination airports. First, I used google maps static map service to get the image of road map of US. Then, using the geocode service, plotted the dots or location of each points in US. After this, using `geom_line` method of `ggplot` I was able to draw the lines connecting the destinations. This was based on plot done in this blog for chineese airports^3^.
+
+
+ 
+``` {r warning = FALSE}
+
+#  maps
+# http://xccds1977.blogspot.com/2012/07/blog-post_26.html
+library(ggmap)
+#Destnation
+destination <-
+  f_data %>%  group_by(DestCityName) %>% summarise(n = n())
+
+# using google geocode service to get the lattitude and longitude
+latLong <-
+  geocode (as.character(destination$DestCityName), 'latlona')
+
+# df with long , lat and address
+latLong <- rbind(latLong, geocode ('san antonio, tx', 'latlona'))
+latLong$id <- 1:dim(latLong)[1]
+latLong <- latLong %>%  select(id, lon, lat, address)
+
+destination$sourceCity <- 'san antonio, tx'
+# df with source, destination and number of flights
+destination <- destination %>%  select(sourceCity, DestCityName, n)
+colnames(destination) <- c('source', 'dest', 'count_flights')
+
+# instead of this we could use  destination$id <-1:dim(destination)[1]
+for (i in seq(nrow(destination))) {
+  destination$id[i] <-  i
+}
+
+
+# creating the source table to show lines
+src <- data.frame(lon = character(30), lat = character(30))
+src$id <-  1:dim(src)[1]
+src$lon <- as.numeric(-98.49363)
+src$lat <- as.numeric(29.42412)
+src  <- src %>% select(id, lon, lat)
+
+
+
+dst <- latLong %>%  filter(id != 31) %>%  select (id, lon, lat)
+dst$lat <- sapply (dst$lat, as.numeric)
+dst$lon <- sapply (dst$lon, as.numeric)
+str (dst)
+
+# route_lat_lon
+route_lat_lon <- rbind(src, dst)
+
+mapData <-
+  get_googlemap(center = 'us', zoom = 4, maptype = 'roadmap')
+usmap <- ggmap(mapData, darken = 0, extent = 'device')
+airports <-
+  usmap +  geom_point(
+    data = latLong,aes(x = lon,y = lat),colour = 'red4',alpha = 0.8, size = 3
+  )
+route <-
+  airports + geom_line(
+    data = route_lat_lon, aes(x = lon, y = lat, group = id), size = 0.5 ,alpha = 0.4,color = 'red4'
+  )
+
+# map of different destinations from SAT.
+route
+
+``` 
+
+
+``` {r}
+
+# Removing the first column from the datasets, which was automatically added when written as csv
+weather_data <- weather_data[,-1]
+flight_data <- f_dataset[,-1]
+
+# making a few columns as factors
+
+flight_data$Cancelled <-  as.factor(flight_data$Cancelled)
+flight_data$Diverted <-  as.factor(flight_data$Diverted)
+flight_data$Quarter <-  as.factor(flight_data$Quarter)
+flight_data$Month <-  as.factor(flight_data$Month)
+flight_data$DayofMonth <-  as.factor(flight_data$DayofMonth)
+flight_data$DayOfWeek <-  as.factor(flight_data$DayOfWeek)
+flight_data$DestAirportID <-  as.factor(flight_data$DestAirportID)
+flight_data$DestAirportSeqID <-
+  as.factor(flight_data$DestAirportSeqID)
+flight_data$DestCityMarketID <-
+  as.factor(flight_data$DestCityMarketID)
+flight_data$ArrDel15 <-  as.factor(flight_data$ArrDel15)
+flight_data$DepDel15 <- as.factor(flight_data$DepDel15)
+
+```
+
+``` {r}
+
+# Appending a zero to the front of depTime, so that hour format extracted can be easily matched with weather
+for (i in seq(nrow(flight_data))) {
+  if (nchar(flight_data$DepTime[i]) == 3)
+    flight_data$DepTime[i] = paste0("0",flight_data$DepTime[i], sep = "")
+  else if (nchar(flight_data$DepTime[i]) == 2)
+    flight_data$DepTime[i] = paste0("00", flight_data$DepTime[i], sep = "")
+  else
+    flight_data$DepTime[i] = flight_data$DepTime[i]
+  #print (flight_data$DepTime[i])
+}
+
+```
+
+In the data frame, the time variable for both departure and arrival is given as hmm in a 24 hr format, to format it into a hhmm , I am appending 00 to the front, where there the time is represented as only minutes, and when it is hmm, I am appending a 0 in front of that so that the format is consistent. This is done for both arrival and departure time.
+
+``` {r}
+
+# Appending a zero to the front of ArrTime, so that hour format extracted can be easily matched with weather
+for (i in seq(nrow(flight_data))) {
+  if (nchar(flight_data$ArrTime[i]) == 3)
+    flight_data$ArrTime[i] = paste0("0",flight_data$ArrTime[i], sep = "")
+  else if (nchar(flight_data$ArrTime[i]) == 2)
+    flight_data$ArrTime[i] = paste0("00", flight_data$ArrTime[i], sep = "")
+  else
+    flight_data$ArrTime[i] = flight_data$ArrTime[i]
+  #print (flight_data$DepTime[i])
+}
+
+``` 
+
+``` {r}
+
+
+# getting the hour from departure time
+flight_data$hour <- substr(flight_data$DepTime, 1, 2)
+flight_data$arr_hour <- substr(flight_data$ArrTime,1, 2)
+
+
+``` 
+
+Adding two new attributes hour,  and arr_hour here hour represents the departure hour and arr_hour represent the arrival hour.
+
+
+``` {r}
+# removing NA from departure delay and hour (departure Time) column and unites date and hour as date_hour
+f_data <-
+  flight_data %>% filter(DepDelay != "NA") %>%  unite("date_hour", FlightDate, hour, sep = "-")
+
+```
+
+As mentioned in the comment removing NA from departure delay and departure time atrributs and uniting the hour and date attributes to date_hour. 
+
+Studying the structure of the f_dataset
+
+``` {r eval = FALSE}
+dim(f_data)
+str(f_data)
+```
+
+Now to the fun part, and answering some questions. 
+
+##### **what is average departure delay for each carrier?**
+
+``` {r}
+
+# Average delay grouped based on carriers
+# combined
+Avg_carriers_delay <-
+  f_data %>%  filter(DepDel15 == 1) %>%  
+  group_by(UniqueCarrier) %>%  
+  summarize(Mean_Delay = mean(DepDelayMinutes),
+            count = n()) %>% 
+  arrange(desc(Mean_Delay))
+
+```
+
+
+Visualizing these results
+
+
+``` {r warning = FALSE}
+# bar chart of arr delay and flights
+barchart(Mean_Delay ~  UniqueCarrier, data = Avg_carriers_delay ,
+         ylab = "Mean Arrival Delay (in minutes)", xlab = "Unique Carrier Codes", main = 
+           "Arrival Delay Statistic of carrier from SAT")
+```
+
+
+``` {r warning = FALSE}
+# Arrival delay for carriers and count
+levelplot(Mean_Delay ~ count * UniqueCarrier, data = Avg_carriers_delay, main =
+            "Arrival Delay vs number of flights per carrier" )
+
+Avg_carriers_delay
+
+
+```
+
+
+##### **what is average arrival delay for each carrier?**
+
+``` {r}
+
+
+# Average arrival Delay
+Avg_arr_delay_carriers <-  f_data %>%  filter(ArrDel15 == 1) %>%  
+  group_by(UniqueCarrier) %>%  
+  summarize(Mean_Arr_Delay = mean(ArrDelayMinutes),
+            count = n()) %>% 
+  arrange(desc(Mean_Arr_Delay))
+
+
+
+Avg_arr_delay_carriers
+
+```
+
+Visualizing these results
+
+
+``` {r warning = FALSE}
+# bar chart of arr delay and flights
+barchart(Mean_Arr_Delay ~  UniqueCarrier, data = Avg_arr_delay_carriers ,
+         ylab = "Mean Arrival Delay (in minutes)", xlab = "Unique Carrier Codes", main = 
+           "Arrival Delay Statistic of carrier from SAT")
+```
+
+
+``` {r warning = FALSE}
+# Arrival delay for carriers and count
+levelplot(Mean_Arr_Delay ~ count * UniqueCarrier, data = Avg_arr_delay_carriers, main =
+            "Arrival Delay vs number of flights per carrier" )
+
+```
+
+
+Let us see the delay for both 2014 and 2013 and see if there is any significant difference
+
+``` {r warning = FALSE}
+
+
+
+# 2013
+Avg_carriers_delay_2013 <-  f_data %>%
+  filter(DepDel15 == 1, Year == 2013) %>%
+  group_by(UniqueCarrier) %>%
+  summarize(Mean_Delay = mean(DepDelayMinutes), count = n()) %>%
+  arrange(desc(Mean_Delay))
+
+Avg_carriers_delay_2013
+
+# 2014
+Avg_carriers_delay_2014 <-  f_data %>%
+  filter(DepDel15 == 1, Year == 2014) %>%
+  group_by(UniqueCarrier) %>%
+  summarize(Mean_Delay = mean(DepDelayMinutes), count = n()) %>%
+  arrange(desc(Mean_Delay))
+
+Avg_carriers_delay_2014
+
+# bar chart of delay and flights
+barchart(Mean_Delay ~ UniqueCarrier, data = Avg_carriers_delay_2013 ,
+         ylab = "Mean Departure Delay (in minutes)", xlab = "Unique Carrier Codes", main = 
+           "Flight Delay Statistic of carrier from SAT for 2013")
+
+# 2013
+levelplot(Mean_Delay ~ count * UniqueCarrier, data = Avg_carriers_delay_2013, main =
+            "Delay vs number of flights per carrier for 2013" )
+
+
+
+#2014
+levelplot(Mean_Delay ~ count * UniqueCarrier, data = Avg_carriers_delay_2014, main =
+            "Delay vs number of flights per carrier for 2014")
+```
+
+
+
+##### **What is the maximum delay for each carrier flying out from SAT and on which date_hour?**#####
+
+``` {r warning = FALSE}
+
+
+Max_carriers_delay <-
+  sqldf(
+    "SELECT UniqueCarrier, Max(DepDelayMinutes) as Max_Delay_minutes, date_hour from f_data group by UniqueCarrier Order By Max_Delay_minutes DESC;"
+  )
+
+Max_carriers_delay
+
+``` 
+As you can see the maximum delay in the two years was caused by an American Airlines flight on 2014-09-30, this was followed by a delta airlines flight just the next month!!
+
+
+##### **Which are the top destinations (Airports) ?**#####
+
+``` {r warning = FALSE}
+
+# Top 4 destinations for each year
+flight_Destination <-   f_data %>% group_by(Year, Dest) %>%  summarize(Number_of_flights = n()) 
+flight_Destination <- flight_Destination %>% filter (Number_of_flights > 2000) %>% arrange(desc(Number_of_flights))
+flight_Destination
+``` 
+
+##### **Plot of number of flights to each destination for 2013 and 2014**
+``` {r warning = FALSE}
+
+# list of destinations and numbr of flights
+
+flight_Destination <-   f_data %>% filter (Year < 2015) %>%  group_by(Year, Dest) %>%  summarize(Number_of_flights = n()) 
+flight_Destination <- flight_Destination %>% arrange(desc(Number_of_flights))
+
+# plot of number of flights for each Destination- Airport
+barchart(Number_of_flights ~ Dest,groups = Year,stack = T, auto.key=list(space='right'), data = 
+           flight_Destination, ylab = "Number of flights", xlab = "Airport")
+
+``` 
+The two destination with highest number of flights are both in Dallas , one is DAL, which is a domestic airport and DFW, the Dallas International airport.
+
+
+``` {r warning = FALSE}
+
+# Delay grouped based on Destination
+Avg_delay_Destination <-
+  f_data %>% filter(DepDel15 == 1, Year != 2015) %>% 
+  group_by(Year, DestCityName, Dest) %>%
+  summarize(Mean_Delay = mean(DepDelayMinutes), Number_of_flights = n()) %>%
+  arrange(desc(Number_of_flights))
+
+View(Avg_delay_Destination)
+
+# plot of Avg delay for each Destination- Airport
+barchart(Mean_Delay ~ Dest,groups = Year,stack = F, auto.key=list(space='right'), data = 
+           Avg_delay_Destination, ylab = "Mean Delay", xlab = "Airport", main = 
+           "Average Delay to different destinations")
+
+bwplot(Mean_Delay ~ Dest, data = Avg_delay_Destination, fill = "orange", pch="|",
+       xlab = "Airport", ylab = "Mean Delay", main = "Average Delay Spread to diff destinations")
+
+
+``` 
+
+The above two plots, show the same variables in two different graphs, that is mean delay for flights based on destination airport and the sread of delay for each destination.
+
+
+Let us now create the dataset which has average_delay for flights even if atleast one flight was delayed
+
+
+``` {r warning = FALSE}
+
+# Average delay  - atleast one flight was delayed for 15 minutes
+avg_delay <-
+  f_data %>% group_by (date_hour) %>% filter(DepDel15 == 1) %>% summarize (Avg_DepDelayMinutes = mean(DepDelayMinutes), count = n())
+
+
+```
+
+``` {r warning = FALSE, eval = FALSE}
+# Exploring avg_delay subset
+summary(avg_delay)
+dim(avg_delay)
+
+```
+
+Now, let us find the dates on which at least one flight was delayed for more than 350 minutes
+
+``` {r warning = FALSE}
+
+#  max delay for each date_hour, where the departure delay was atleast 15 mins
+max_delay <-
+  f_data %>% group_by (date_hour) %>% 
+  filter(DepDel15 == 1) %>% 
+  summarize (Max_DepDelayMinutes = max(DepDelayMinutes))
+
+max_delay_350_mins <- max_delay %>%  filter (Max_DepDelayMinutes > 350)
+
+max_delay_350_mins$Max_DepDelayMinutes <- gsub(",","",max_delay_350_mins$Max_DepDelayMinutes)
+max_delay_350_mins$Max_DepDelayMinutes <- as.numeric(max_delay_350_mins$Max_DepDelayMinutes)
+max_delay_350_mins$date_hour <- as.POSIXct(max_delay_350_mins$date_hour, format = '%Y-%m-%d-%H')
+
+```
+
+Now let us plot that and visualize it
+
+``` {r warning = FALSE}
+# xy plot
+xyplot(Max_DepDelayMinutes ~ date_hour, data = max_delay_350_mins, type = c("p", "l"))
+
+```
+
+Let us see the top 10 destinations across 2014 and 13 for which there was significant delays
+
+``` {r warning = FALSE}
+
+max_delay_destination <-
+  sqldf(
+    "select f_data.date_hour,Max_DepDelayMinutes,UniqueCarrier, DestCityName, Distance FROM max_delay
+    inner join f_data  on f_data.date_hour = max_delay.date_hour
+    and f_data. DepDelayMinutes = max_delay.Max_DepDelayMinutes
+    order by max_delay.Max_DepDelayMinutes DESC;"
+  )
+
+
+max_delay_destination <- max_delay_destination %>% filter (Max_DepDelayMinutes > 596)
+
+max_delay_destination
+
+```
+
+##### ** Let us see the delays across two years as a calendar
+
+``` {r warning = FALSE}
+
+
+library(makeR)
+
+avg_flt_delay_per_day <-
+  f_data %>% group_by (Year, Month, DayofMonth) %>% filter(DepDel15 == 1) %>% summarize (Avg_DepDelayMinutes = mean(DepDelayMinutes), count = n())
+
+avg_flt_delay_per_day <- avg_flt_delay_per_day %>% filter (Year < 2015)
+
+# POSIX date
+each_dt_as_char <-
+  paste0(
+    as.character(avg_flt_delay_per_day$Year), "-",as.character(avg_flt_delay_per_day$Month),"-", as.character(avg_flt_delay_per_day$DayofMonth)
+  )
+each_dt <- as.POSIXct(each_dt_as_char,format = "%Y-%m-%d")
+
+
+calendarHeat(
+  each_dt, avg_flt_delay_per_day$Avg_DepDelayMinutes, ncolors = 10, color = "r2b",
+  varname = "Average Departure Delay in Minutes"
+)
+
+
+```
+
+
+
+
+
