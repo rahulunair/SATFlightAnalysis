@@ -351,7 +351,7 @@ weather_data_full <- weather_data_1
 weather_data_full$year <- as.numeric(substr(weather_data_1$date, 1, 4))
 
 weather_data_1 <- weather_data_full %>% filter (year >2012)
-summary(weather_data_1)
+View(weather_data_1)
 
 # Average weather - Averaging all values in a 24 hr period, getting max of weather conditions and events if any
 avg_weather <-
@@ -362,6 +362,11 @@ avg_weather <-
     conditions = labels(which.max(table(Conditions))),
     events = labels(which.max(table(Events)))
   )
+
+View(avg_weather)
+
+
+
 
 
 dim (avg_weather)
@@ -539,18 +544,18 @@ src$lon <- as.numeric(-98.49363)
 src$lat <- as.numeric(29.42412)
 src  <- src %>% select(id, lon, lat)
 
-View(src)
+#View(src)
 
 dst <- latLong %>%  filter(id != 31) %>%  select (id, lon, lat)
 dst$lat <- sapply (dst$lat, as.numeric)
 dst$lon <- sapply (dst$lon, as.numeric)
 str (dst)
-View(dst)
+#View(dst)
 
 
 # route_lat_lon
 route_lat_lon <- rbind(src, dst)
-View(route_lat_lon)
+#View(route_lat_lon)
 
 mapData <-
   get_googlemap(center = 'us', zoom = 4, maptype = 'roadmap')
@@ -573,5 +578,100 @@ xyplot(Avg_Temperature_F ~ date_hour, data = avg_weather_2013,
        type = c("l", "smooth"), grid = TRUE, col.line = "darkorange",main = 
          "Temperature accross the year for 2013",xlab = "Date-hour across the year",
        ylab = "Temperature in F", scales=list(x=list(at=NULL)))
+
+View (f_data)
+
+#A model to predict departure delay minutes#
+
+
+# cleaning the flight dataset for modelling departure delay
+
+f_data_modelling <-  f_data %>%  select (-Div5TotalGTime, -Div5WheelsOn ,
+                                         -Div5AirportSeqID,-DepDelay,
+                                         -Div5WheelsOff,-Div5TailNum, 
+                                         -Div5LongestGTime, -DepartureDelayGroups,
+                                         -DepDelayMinutes, -V110, -OriginCityName, -OriginState, 
+                                         -OriginStateFips, -OriginStateName,
+                                         -OriginCityMarketID, -Origin, 
+                                         -OriginAirportID,-OriginAirportSeqID,
+                                         -Div2TailNum,-Div2Airport,
+                                         -DivAirportLandings, -Diverted,
+                                         -Cancelled, -ArrDel15, -ArrDelay,
+                                         -Flights, -OriginWac, -Div1Airport,
+                                         -Div1TailNum, -DestCityName,
+                                         -DestCityMarketID, -DestAirportSeqID )
+
+# Removing variables with only NA's
+f_data_modelling <- f_data_modelling[,colSums(is.na(f_data_modelling))<60000]
+nrow (f_data_modelling)
+f_data_mdl <- na.omit(f_data_modelling);
+
+library (data.table)
+setattr(f_data_mdl$arr_hour,"levels",c("00", "01", "02", "03", "05", "06", "07", "08", "09", "10",
+                              "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", 
+                              "21", "22", "23", "24"))
+
+
+f_data_mdl$ArrMin <- substr(f_data_mdl$ArrTime, nchar (f_data_mdl$ArrTime) -1
+                           , nchar (f_data_mdl$ArrTime) )
+f_data_mdl$DepMin <- substr(f_data_mdl$DepTime, nchar (f_data_mdl$DepTime) -1
+                            , nchar (f_data_mdl$DepTime) )
+
+
+f_data_mdl$Year <- as.factor(f_data_mdl$Year)
+f_data_mdl$ArrMin <- as.integer(f_data_mdl$ArrMin )
+f_data_mdl$DepMin <- as.integer(f_data_mdl$DepMin)
+f_data_mdl$hour <- substr(f_data_mdl$date_hour, 12,13 ) 
+f_data_mdl$hour <- as.factor(f_data_mdl$hour)
+setattr(f_data_mdl$hour,"levels",c("00", "01", "04", "05", "06", "07", "08", "09", "10",
+                                       "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", 
+                                       "21", "22", "23", "24"))
+
+colnames(f_data_mdl)
+summary(f_data_mdl$DepDel15)
+summary (f_data_mdl$ArrDelayMinutes)
+f_data_mdl$ArrDel15 <- f_data_mdl$ArrDelayMinutes > 15
+f_data_mdl$ArrDel15 <- ifelse ( f_data_mdl$ArrDel15 == TRUE, 1, 0 )
+f_data_mdl$ArrDel15 <- factor(f_data_mdl$ArrDel15)
+f_data_mdl.train <- na.omit(f_data_mdl.train)
+f_data_mdl.test <- na.omit(f_data_mdl.test)
+
+colnames(f_data_mdl)
+
+
+f_data_mdl$DistanceGroup <- as.factor(f_data_mdl$DistanceGroup)
+flight_formula <- as.factor(DepDel15) ~ ArrDel15 + Quarter + Month + DayOfWeek +       UniqueCarrier + Dest + DepTime + AirTime + hour + arr_hour + Distance + DayofMonth + 
+  TaxiIn + ArrDelayMinutes + DepMin + DistanceGroup
+
+
+
+
+f_data_mdl$arr_hour <- as.integer(f_data_mdl$arr_hour)
+f_data_mdl$ArrTime<- as.integer(f_data_mdl$ArrTime)
+
+f_data_mdl$ArrDelayMinutes
+
+
+ind <- sample(2, nrow(f_data_mdl), replace=TRUE, prob=c(0.7, 0.3))
+f_data_mdl.train <- f_data_mdl[ind==1,]
+f_data_mdl.test <- f_data_mdl[ind==2,]
+
+
+
+
+
+##### RANDOM FOREST #######
+library (randomForest)
+rf_model <- randomForest(flight_formula, data = f_data_mdl.train, importance = TRUE, ntree = 500)
+
+delay.prediction <- predict(rf_model, f_data_mdl.test )
+table (f_data_mdl.test[,'DepDel15'],delay.prediction )
+
+varImpPlot(rf_model)
+
+
+
+
+
 
 

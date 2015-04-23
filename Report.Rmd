@@ -1,14 +1,16 @@
 ---
-title: "On-Time Performance of Flights from San Antonio"  
-author: "Rahul Unnikrishnan Nair"  
-date: "April 20, 2015"   
-
+title: "On-Time Performance of Flights from San Antonio"
+author: "Rahul Unnikrishnan Nair"
+date: "April 20, 2015"
 output:
+  word_document:
+    fig_height: 3.5
+    fig_width: 8
   html_document:
     toc: yes
 ---
     
-This is a comprehensive analysis of on time performance of flights from the city of San Antonio, Texas USA. Here I have used two primary data sets to try to identify the rate of delayed flights, what are the causes of delays, is weather a significant factor for delays as in most airports. In the end I have developed a simple model using randomForest algorithm to try and predict flight delay,
+This is a comprehensive analysis of on time performance of flights from the city of San Antonio, Texas USA. Here I have used two primary data sets to try to identify the rate of delayed flights, what are the causes of delays, is weather a significant factor for delays as in most airports. In the end I have developed a simple model using randomForest algorithm to try and predict flight delay.
 
 
 ### **Initial Setup**
@@ -269,7 +271,7 @@ f_dataset = read.csv("../datasets/SAT_flights.csv")
 
 Thus, as shown in the above code block, weather_data will have historical weather data for each day from 2005 to 2015 and f_data set will have flight statistics for flights whose origin is San Antonio Airport.
 
-``` {r}
+``` {r eval = FALSE}
 # Initial exploratory analysis 
 
 # flight data
@@ -383,7 +385,7 @@ Let us see a map of flight routes from San Antonio airport to its destinations, 
 
 
  
-``` {r warning = FALSE}
+``` {r message = FALSE, warning = FALSE}
 
 #  maps
 # http://xccds1977.blogspot.com/2012/07/blog-post_26.html
@@ -616,7 +618,6 @@ Avg_delay_Destination <-
   summarize(Mean_Delay = mean(DepDelayMinutes), Number_of_flights = n()) %>%
   arrange(desc(Number_of_flights))
 
-View(Avg_delay_Destination)
 
 # plot of Avg delay for each Destination- Airport
 barchart(Mean_Delay ~ Dest,groups = Year,stack = F, auto.key=list(space='right'), data = 
@@ -743,11 +744,11 @@ Above block of code filters the weather data and removes NA from vairables we ar
 weather_data_full <- weather_data_1
 weather_data_full$year <- as.numeric(substr(weather_data_1$date, 1, 4))
 weather_data_1 <- weather_data_full %>% filter (year >2012)
-summary(weather_data_1)
+#summary(weather_data_1)
 
 ```
 
-In this block, historical weather data is stored as weather_data_full dataframe. A new variable is created for weather_data_full, year. This is used to filter off data for year less than 2012.
+In this block, historical weather data is stored as weather data full dataframe. A new variable is created for weather data full, year. This is used to filter off data for year less than 2012.
 
 ##### ** Let us try to answer some question regarding weather of san antonio**
 
@@ -755,27 +756,23 @@ This is an intricate data extraction, where average of attributes are found alon
 
 ``` {r warning = FALSE}
 
+
 #Average weather - Averaging all values in a 24 hr period, getting max of weather conditions and #events if any
-avg_weather <-
-  weather_data_1 %>% group_by(date_hour) %>% summarise(
-    Avg_Temperature_F = mean(TemperatureF),
-    Avg_wind_speed_MPH = mean (Wind.SpeedMPH),
-    Avg_Visibility = mean(VisibilityMPH),
-    conditions = labels(which.max(table(Conditions))),
-    events = labels(which.max(table(Events)))
-  )
-  
-  # Removing some stray values
-  avg_weather <- avg_weather %>% 
-  filter (Avg_Temperature_F > -25)
 
-avg_weather_2013 <- avg_weather %>% 
-  filter (Avg_Temperature_F > -25, year == 2013)
+avg_weather <- weather_data_1 %>% group_by(date_hour) %>% summarise(Avg_Temperature_F = mean(TemperatureF), Avg_wind_speed_MPH = mean (Wind.SpeedMPH),Avg_Visibility = mean(VisibilityMPH),conditions = labels(which.max(table(Conditions))),events = labels(which.max(table(Events))))
 
-avg_weather_2014 <- avg_weather %>% 
-  filter (Avg_Temperature_F > -25, year == 2014)
+# Removing some stray values
+avg_weather <- avg_weather %>%
+filter (Avg_Temperature_F > -25)
+
+avg_weather$year <- as.numeric(substr(avg_weather$date, 1, 4))
 
 
+avg_weather_2013 <- avg_weather %>%
+filter (Avg_Temperature_F > -25, year == 2013)
+
+avg_weather_2014 <- avg_weather %>%
+filter (Avg_Temperature_F > -25, year == 2014)
 
 ``` 
 Now we have average weather across each date-hour along with the predominant condition for that particular time period.
@@ -833,25 +830,26 @@ xyplot(Avg_Temperature_F ~ date_hour, data = avg_weather_2013,
 
 - For 2012, the same plot looks like
 
+``` {r warning = FALSE}
 # plot of weather 2014
 xyplot(Avg_Temperature_F ~ date_hour, data = avg_weather_2014,
        type = c("l", "smooth"), grid = TRUE, col.line = "darkblue",main = 
          "Temperature accross the year for 2014",xlab = "Date-hour across the year",
        ylab = "Temperature in F", scales=list(x=list(at=NULL)))
 
-
+```
 As we see there is no significant change in weather for both 2013 and 2014.
 
 Let us see the difference in calendar months, the change in temperature for San Antonio for 2014 and 2013
 
 ``` {r warning = FALSE}
 # calendar plot of weather
-flight_nd_weather_no_2015 <- flight_nd_weather %>% 
-  filter(substr(flight_nd_weather$date_hour,1, 4) != 2015) 
+avg_weather_no_2015 <- avg_weather %>% 
+  filter(avg_weather$year > 2012, avg_weather$year < 2015) 
 
-View(flight_nd_weather_no_2015)
-calendarHeat(as.POSIXct(substr(flight_nd_weather_no_2015$date_hour,1, 10), format = "%Y-%m-%d"),
-             flight_nd_weather_no_2015$Avg_Temperature_F,
+
+calendarHeat(as.POSIXct(substr(avg_weather_no_2015$date_hour,1, 10), format = "%Y-%m-%d"),
+             avg_weather_no_2015$Avg_Temperature_F,
              col = 'r2b', varname = "Temperature in degree F")
 
 ```
@@ -864,10 +862,13 @@ I merged both flight data and weather data on the variable `date_hour`.
 Now that we have merged both datasets, let us try to understand the same.
 
 ``` {r warning = FALSE}
+
+flight_nd_weather <- merge(avg_delay, avg_weather, by = "date_hour")
 dim(flight_nd_weather)
 flight_nd_weather$hour <-
   substr(flight_nd_weather$date_hour, 12, 13)
 str(flight_nd_weather)
+View(flight_nd_weather)
 
 ``` 
 
@@ -950,14 +951,15 @@ Let us try to find the relationship between departure and arrival delays
 ``` {r warning = FALSE}
 
 
+avg_dep_arr_delay <-   f_data %>% group_by (date_hour) %>% filter(DepDel15 == 1 && ArrDel15 ==1) %>%
+  summarize (Avg_DepDelayMinutes = mean(DepDelayMinutes), Avg_ArrDelayMinutes = mean(ArrDelayMinutes))
+
 xyplot(Avg_DepDelayMinutes ~ (Avg_ArrDelayMinutes), 
        data = avg_dep_arr_delay, xlab = "Average arrival Delay in Minutes", type = c("p", "smooth"),
        ylab = "Average Departure Delay in Minutes", 
        main = "Departure Delay vs Arrival delay 2013 - 2014")
 
 
-avg_dep_arr_delay <-   f_data %>% group_by (date_hour) %>% filter(DepDel15 == 1 && ArrDel15 ==1) %>%
-  summarize (Avg_DepDelayMinutes = mean(DepDelayMinutes), Avg_ArrDelayMinutes = mean(ArrDelayMinutes))
 
 ``` 
 
@@ -970,5 +972,9 @@ Finally, now that shows there is a linear correlation between departure delay an
 
 
 
+### **Bibliography**
 
+- ^1^ - http://www.transtats.bts.gov/DataIndex.asp
+- ^2^ - http://www.wunderground.com
+- ^3^ - http://xccds1977.blogspot.com/2012/07/blog-post_26.html
 
